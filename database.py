@@ -3,7 +3,8 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 import hashlib
 
-DATABASE_PATH = "license_server.db"
+# Import from config
+from config import DATABASE_PATH
 
 # Default admin credentials (username: admin, password: admin123)
 DEFAULT_ADMIN_USERNAME = "admin"

@@ -8,14 +8,17 @@ import uvicorn
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
+import time
 
-# Configure logging directory
-LOG_DIR = os.path.dirname(os.path.abspath(__file__)) + "/logs"
+# Import config
+from config import LOG_DIR, LOG_RETENTION_DAYS, LOG_LEVEL, HOST, PORT
+
+# Ensure log directory exists
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # Configure logger
 logger = logging.getLogger("license_server")
-logger.setLevel(logging.INFO)
+logger.setLevel(getattr(logging, LOG_LEVEL.upper(), logging.INFO))
 
 # Console handler
 console_handler = logging.StreamHandler()
@@ -23,15 +26,15 @@ console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(console_formatter)
 
-# File handler - rotate daily, keep 7 days
+# File handler - rotate daily, keep configured days
 file_handler = TimedRotatingFileHandler(
     os.path.join(LOG_DIR, "license_server.log"),
     when="midnight",
     interval=1,
-    backupCount=7,
+    backupCount=LOG_RETENTION_DAYS,
     encoding="utf-8"
 )
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(getattr(logging, LOG_LEVEL.upper(), logging.INFO))
 file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(file_formatter)
 
@@ -39,18 +42,15 @@ file_handler.setFormatter(file_formatter)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
-# Cleanup old logs (keep only 7 days)
+# Cleanup old logs (keep only configured days)
 def cleanup_old_logs():
-    import time
     log_files = [f for f in os.listdir(LOG_DIR) if f.startswith("license_server.log.")]
     for f in log_files:
         filepath = os.path.join(LOG_DIR, f)
-        # Files with .YYYYMMDD suffix are older than 7 days
         try:
-            # Get modification time
             mtime = os.path.getmtime(filepath)
             age_days = (time.time() - mtime) / 86400
-            if age_days > 7:
+            if age_days > LOG_RETENTION_DAYS:
                 os.remove(filepath)
                 logger.info(f"Cleaned up old log: {f}")
         except Exception as e:
@@ -118,7 +118,7 @@ async def health():
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=80,
+        host=HOST,
+        port=PORT,
         reload=True
     )

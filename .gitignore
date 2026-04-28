@@ -1,5 +1,6 @@
 __pycache__/
 license_server.db
+.license_server.db
 logs/
 .DS_Store
 
