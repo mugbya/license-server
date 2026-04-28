@@ -29,8 +29,8 @@ class VerifyLicenseRequest(BaseModel):
 
 
 class CreateLicenseKeyRequest(BaseModel):
-    license_key: str
-    license_type: str  # 'year' | 'permanent'
+    # license_key: Optional[str] = None  # 不传则由后端自动生成
+    license_type: str  # 'year' | 'permanent' | 'trial' | 'custom'
     project: str = "zupu"  # 项目标识，如 'zupu'
     expires_at: Optional[str] = None  # 自定义到期时间，格式: 'YYYY-MM-DD HH:MM:SS'，为空则按 license_type 自动计算
 

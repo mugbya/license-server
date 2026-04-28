@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 import hmac
+import secrets
 
 # Import from config
 from config import DATABASE_PATH, LICENSE_SECRET_KEY
@@ -30,6 +31,14 @@ DEFAULT_ADMIN_PASSWORD = "admin123"
 def hash_password(password: str) -> str:
     """Hash password using SHA256"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def generate_license_key(license_type: str) -> str:
+    """Generate a random license key in format GLY-XXXX-XXXX-XXXX-XXXX or GLP-XXXX-XXXX-XXXX-XXXX"""
+    prefix = "GLP" if license_type == "permanent" else "GLY"
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    part = lambda: ''.join(secrets.choice(chars) for _ in range(4))
+    return f"{prefix}-{part()}-{part()}-{part()}-{part()}"
 
 
 def encode_license(license_key: str, license_type: str, expires_at: str = None) -> str:

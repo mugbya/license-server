@@ -55,9 +55,19 @@ async def get_stats(project: str = None):
 @router.post("/create_key")
 async def create_key(req: CreateLicenseKeyRequest):
     """Create a new license key (admin only - should be protected in production)"""
-    result = await db.create_license_key(req.license_key, req.license_type, req.project, req.expires_at)
+    # Generate key on backend if not provided
+    # license_key = req.license_key
+    # if not license_key:
+    license_key = db.generate_license_key(req.license_type)
+
+    result = await db.create_license_key(license_key, req.license_type, req.project, req.expires_at)
     if result.get("success"):
-        return {"success": True, "expires_at": result.get("expires_at")}
+        return {
+            "success": True,
+            "license_key": license_key,  # 返回原始key
+            "encoded_key": result.get("encoded_key"),  # 返回加密后的key
+            "expires_at": result.get("expires_at")
+        }
     raise HTTPException(status_code=400, detail=result.get("error", "Failed to create key"))
 
 

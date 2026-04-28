@@ -56,10 +56,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setGeneratedKey('')
 
     try {
-      const prefix = licenseType === 'permanent' ? 'GLP' : 'GLY'
-      const randomPart = () => Math.random().toString(36).substring(2, 6).toUpperCase()
-      const newKey = `${prefix}-${randomPart()}-${randomPart()}-${randomPart()}-${randomPart()}`
-
       // Calculate expires_at based on license type
       let expiresAt = null
       if (licenseType === 'year') {
@@ -78,7 +74,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
         },
         body: JSON.stringify({
-          license_key: newKey,
           license_type: licenseType,
           project: currentProject?.code || 'zupu',
           expires_at: expiresAt
@@ -87,7 +82,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       if (res.ok) {
         const data = await res.json()
-        setGeneratedKey(newKey)
+        // Use the encoded key returned from backend
+        setGeneratedKey(data.encoded_key || data.license_key)
         // Refresh the license keys list
         loadLicenseKeys()
       } else {
