@@ -12,6 +12,7 @@ class UsageReport(BaseModel):
     region: str
     city: str
     report_date: str
+    project: str  # 项目编码
 
 
 class BatchReportRequest(BaseModel):

@@ -46,9 +46,9 @@ async def report_usage(req: BatchReportRequest):
 
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(project: str = None):
     """Get usage statistics (admin only)"""
-    stats = await db.get_usage_stats()
+    stats = await db.get_usage_stats(project)
     return {"success": True, "data": stats}
 
 

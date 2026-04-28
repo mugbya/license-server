@@ -104,7 +104,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setError('')
 
     try {
-      const res = await fetch('/api/license/stats', {
+      const url = currentProject ? `/api/license/stats?project=${currentProject.code}` : '/api/license/stats'
+      const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
         }

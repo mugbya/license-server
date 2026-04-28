@@ -66,6 +66,7 @@ async def init_db():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS usage_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project TEXT NOT NULL DEFAULT 'zupu',
                 app_version TEXT NOT NULL,
                 os_name TEXT NOT NULL,
                 os_version TEXT NOT NULL,
@@ -77,6 +78,12 @@ async def init_db():
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
+
+        # Add project column if it doesn't exist (for existing databases)
+        try:
+            await db.execute("ALTER TABLE usage_reports ADD COLUMN project TEXT NOT NULL DEFAULT 'zupu'")
+        except:
+            pass
 
         # Projects table
         await db.execute("""
@@ -240,9 +247,10 @@ async def save_usage_reports(reports: List[dict]) -> dict:
         for report in reports:
             await db.execute(
                 """INSERT INTO usage_reports
-                   (app_version, os_name, os_version, public_ip, country, region, city, report_date)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (project, app_version, os_name, os_version, public_ip, country, region, city, report_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
+                    report.get("project", "zupu"),
                     report.get("app_version", ""),
                     report.get("os_name", ""),
                     report.get("os_version", ""),
@@ -257,17 +265,20 @@ async def save_usage_reports(reports: List[dict]) -> dict:
         return {"success": True, "count": len(reports)}
 
 
-async def get_usage_stats() -> dict:
-    """Get usage statistics"""
+async def get_usage_stats(project: str = None) -> dict:
+    """Get usage statistics, optionally filtered by project"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Build project filter
+        project_filter = f"WHERE project = '{project}'" if project else ""
+
         # Total reports count
-        async with db.execute("SELECT COUNT(*) FROM usage_reports") as cursor:
+        async with db.execute(f"SELECT COUNT(*) FROM usage_reports {project_filter}") as cursor:
             total_reports = (await cursor.fetchone())[0]
 
         # Reports by date
         async with db.execute(
-            """SELECT report_date, COUNT(*) as count
-               FROM usage_reports
+            f"""SELECT report_date, COUNT(*) as count
+               FROM usage_reports {project_filter}
                GROUP BY report_date
                ORDER BY report_date DESC
                LIMIT 30"""
@@ -276,8 +287,8 @@ async def get_usage_stats() -> dict:
 
         # Reports by country
         async with db.execute(
-            """SELECT country, COUNT(*) as count
-               FROM usage_reports
+            f"""SELECT country, COUNT(*) as count
+               FROM usage_reports {project_filter}
                GROUP BY country
                ORDER BY count DESC
                LIMIT 10"""
@@ -286,8 +297,8 @@ async def get_usage_stats() -> dict:
 
         # Recent reports
         async with db.execute(
-            """SELECT app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at
-               FROM usage_reports
+            f"""SELECT project, app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at
+               FROM usage_reports {project_filter}
                ORDER BY created_at DESC
                LIMIT 50"""
         ) as cursor:
@@ -299,15 +310,16 @@ async def get_usage_stats() -> dict:
             "reports_by_country": [{"country": r[0], "count": r[1]} for r in reports_by_country],
             "recent_reports": [
                 {
-                    "app_version": r[0],
-                    "os_name": r[1],
-                    "os_version": r[2],
-                    "public_ip": r[3],
-                    "country": r[4],
-                    "region": r[5],
-                    "city": r[6],
-                    "report_date": r[7],
-                    "created_at": r[8]
+                    "project": r[0],
+                    "app_version": r[1],
+                    "os_name": r[2],
+                    "os_version": r[3],
+                    "public_ip": r[4],
+                    "country": r[5],
+                    "region": r[6],
+                    "city": r[7],
+                    "report_date": r[8],
+                    "created_at": r[9]
                 }
                 for r in recent_reports
             ]
