@@ -15,7 +15,8 @@ interface Project {
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'generate' | 'stats' | 'projects' | 'keys'>('generate')
+  const [activeTab, setActiveTab] = useState<'generate' | 'key_list' | 'usage_stats' | 'keys_stats' | 'projects'>('generate')
+  const [activeMenu, setActiveMenu] = useState<'license' | 'stats'>('license')
   const [licenseType, setLicenseType] = useState<'year' | 'permanent' | 'custom'>('year')
   const [customExpiry, setCustomExpiry] = useState('')
   const [generatedKey, setGeneratedKey] = useState('')
@@ -317,6 +318,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             onChange={(e) => {
               const selected = projects.find(p => p.id === Number(e.target.value))
               setCurrentProject(selected || null)
+              setActiveMenu('license')
             }}
             style={styles.projectSelect}
           >
@@ -327,46 +329,91 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           </select>
         </div>
 
-        {/* 项目内导航 */}
+        {/* 一级菜单 */}
         {currentProject && (
-          <nav style={styles.nav}>
-            <div style={styles.navSection}>
-              <span style={styles.navSectionTitle}>{currentProject.name}</span>
+          <div style={styles.menuSection}>
+            {/* 序列码管理 */}
+            <div style={styles.menuGroup}>
               <button
-                onClick={() => setActiveTab('generate')}
+                onClick={() => setActiveMenu('license')}
                 style={{
-                  ...styles.navItem,
-                  backgroundColor: activeTab === 'generate' ? 'white' : 'transparent',
-                  color: activeTab === 'generate' ? '#667eea' : 'white'
+                  ...styles.menuButton,
+                  backgroundColor: activeMenu === 'license' ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  borderLeftColor: activeMenu === 'license' ? '#667eea' : 'transparent'
                 }}
               >
-                <Plus size={20} />
-                <span>生成序列码</span>
-              </button>
-              <button
-                onClick={() => { setActiveTab('stats'); loadStats(); }}
-                style={{
-                  ...styles.navItem,
-                  backgroundColor: activeTab === 'stats' ? 'white' : 'transparent',
-                  color: activeTab === 'stats' ? '#667eea' : 'white'
-                }}
-              >
-                <BarChart3 size={20} />
-                <span>使用统计</span>
-              </button>
-              <button
-                onClick={() => { setActiveTab('keys'); loadLicenseKeys(); }}
-                style={{
-                  ...styles.navItem,
-                  backgroundColor: activeTab === 'keys' ? 'white' : 'transparent',
-                  color: activeTab === 'keys' ? '#667eea' : 'white'
-                }}
-              >
-                <Key size={20} />
+                <Key size={18} />
                 <span>序列码管理</span>
               </button>
+
+              {/* 二级菜单 */}
+              {activeMenu === 'license' && (
+                <div style={styles.subMenu}>
+                  <button
+                    onClick={() => setActiveTab('generate')}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'generate' ? 'white' : 'transparent',
+                      color: activeTab === 'generate' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    生成序列码
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('key_list'); loadLicenseKeys(); }}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'key_list' ? 'white' : 'transparent',
+                      color: activeTab === 'key_list' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    序列码列表
+                  </button>
+                </div>
+              )}
             </div>
-          </nav>
+
+            {/* 数据统计 */}
+            <div style={styles.menuGroup}>
+              <button
+                onClick={() => setActiveMenu('stats')}
+                style={{
+                  ...styles.menuButton,
+                  backgroundColor: activeMenu === 'stats' ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  borderLeftColor: activeMenu === 'stats' ? '#667eea' : 'transparent'
+                }}
+              >
+                <BarChart3 size={18} />
+                <span>数据统计</span>
+              </button>
+
+              {/* 二级菜单 */}
+              {activeMenu === 'stats' && (
+                <div style={styles.subMenu}>
+                  <button
+                    onClick={() => { setActiveTab('usage_stats'); loadStats(); }}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'usage_stats' ? 'white' : 'transparent',
+                      color: activeTab === 'usage_stats' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    使用统计
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('keys_stats'); loadLicenseKeys(); }}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'keys_stats' ? 'white' : 'transparent',
+                      color: activeTab === 'keys_stats' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    序列码统计
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         <div style={styles.bottom}>
@@ -414,7 +461,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         {currentProject && activeTab === 'generate' && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>生成序列码 - {currentProject.name}</h2>
+            <h2 style={styles.pageTitle}>生成序列码</h2>
 
             <div style={styles.card}>
               <div style={styles.cardHeader}>
@@ -502,9 +549,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           </div>
         )}
 
-        {activeTab === 'stats' && currentProject && (
+        {activeTab === 'usage_stats' && currentProject && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>使用统计 - {currentProject.name}</h2>
+            <h2 style={styles.pageTitle}>使用统计</h2>
 
             {error && <div style={styles.error}>{error}</div>}
 
@@ -674,27 +721,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           </div>
         )}
 
-        {activeTab === 'keys' && currentProject && (
+        {activeTab === 'key_list' && currentProject && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>序列码管理 - {currentProject.name}</h2>
-
-            {/* 统计卡片 */}
-            {keysStats && (
-              <div style={styles.statsGrid}>
-                <div style={styles.statCard}>
-                  <div style={styles.statValue}>{keysStats.total || 0}</div>
-                  <div style={styles.statLabel}>总序列码</div>
-                </div>
-                <div style={styles.statCard}>
-                  <div style={styles.statValue}>{keysStats.activated || 0}</div>
-                  <div style={styles.statLabel}>已激活</div>
-                </div>
-                <div style={styles.statCard}>
-                  <div style={styles.statValue}>{keysStats.revoked || 0}</div>
-                  <div style={styles.statLabel}>已撤销</div>
-                </div>
-              </div>
-            )}
+            <h2 style={styles.pageTitle}>序列码列表</h2>
 
             {error && <div style={styles.error}>{error}</div>}
 
@@ -735,8 +764,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               </span>
                             </td>
                             <td style={styles.td}>
-                              <span style={{ fontSize: '12px', color: '#666' }}>
-                                {k.machine_code ? k.machine_code.slice(0, 20) + '...' : '-'}
+                              <span style={{ fontSize: '14px', color: '#666', fontFamily: 'monospace' }}>
+                                {k.machine_code || '-'}
                               </span>
                             </td>
                             <td style={styles.td}>{k.expires_at || '-'}</td>
@@ -771,6 +800,57 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   ) : (
                     <div style={styles.empty}>暂无序列码，点击"生成序列码"创建</div>
                   )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'keys_stats' && currentProject && (
+          <div style={styles.content}>
+            <h2 style={styles.pageTitle}>序列码统计</h2>
+
+            {keysStats && (
+              <div style={styles.statsGrid}>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{keysStats.total || 0}</div>
+                  <div style={styles.statLabel}>总序列码</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{keysStats.activated || 0}</div>
+                  <div style={styles.statLabel}>已激活</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{keysStats.revoked || 0}</div>
+                  <div style={styles.statLabel}>已撤销</div>
+                </div>
+              </div>
+            )}
+
+            {keysStats?.by_type && keysStats.by_type.length > 0 && (
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <h3 style={styles.cardTitle}>按类型统计</h3>
+                </div>
+                <div style={styles.cardContent}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>类型</th>
+                        <th style={styles.th}>数量</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {keysStats.by_type.map((item: any, index: number) => (
+                        <tr key={index} style={styles.tr}>
+                          <td style={styles.td}>
+                            {item.type === 'year' ? '年度' : item.type === 'permanent' ? '永久' : item.type === 'custom' ? '自定义' : item.type}
+                          </td>
+                          <td style={styles.td}>{item.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -920,6 +1000,51 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 16px',
     textTransform: 'uppercase'
   },
+  menuSection: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    marginTop: '20px'
+  },
+  menuGroup: {
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  menuButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '14px 18px',
+    border: 'none',
+    borderLeft: '3px solid transparent',
+    borderRadius: '0',
+    fontSize: '16px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    textAlign: 'left',
+    width: '100%',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.9)'
+  },
+  subMenu: {
+    display: 'flex',
+    flexDirection: 'column',
+    paddingLeft: '24px',
+    gap: '4px'
+  },
+  subMenuItem: {
+    padding: '12px 18px',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '15px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    textAlign: 'left',
+    width: '100%'
+  },
   navItem: {
     display: 'flex',
     alignItems: 'center',
@@ -949,7 +1074,8 @@ const styles: Record<string, React.CSSProperties> = {
     overflowY: 'auto'
   },
   content: {
-    maxWidth: '800px'
+    maxWidth: '1200px',
+    width: '100%'
   },
   pageTitle: {
     fontSize: '24px',
@@ -1107,18 +1233,18 @@ const styles: Record<string, React.CSSProperties> = {
   },
   th: {
     textAlign: 'left',
-    padding: '12px 8px',
-    fontSize: '13px',
-    color: '#888',
-    fontWeight: 500,
-    borderBottom: '1px solid #f0f0f0'
+    padding: '14px 12px',
+    fontSize: '15px',
+    color: '#666',
+    fontWeight: 600,
+    borderBottom: '2px solid #f0f0f0'
   },
   tr: {
     borderBottom: '1px solid #f5f5f5'
   },
   td: {
-    padding: '12px 8px',
-    fontSize: '14px',
+    padding: '14px 12px',
+    fontSize: '15px',
     color: '#333'
   },
   loading: {
@@ -1209,10 +1335,10 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer'
   },
   code: {
-    padding: '2px 6px',
+    padding: '4px 8px',
     background: '#f5f5f5',
     borderRadius: '4px',
-    fontSize: '13px',
+    fontSize: '14px',
     fontFamily: 'monospace'
   },
   badge: {
