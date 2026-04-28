@@ -710,6 +710,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           <th style={styles.th}>序列码</th>
                           <th style={styles.th}>类型</th>
                           <th style={styles.th}>状态</th>
+                          <th style={styles.th}>绑定机器</th>
                           <th style={styles.th}>到期时间</th>
                           <th style={styles.th}>是否过期</th>
                           <th style={styles.th}>操作</th>
@@ -731,6 +732,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                 color: k.revoked ? '#e53e3e' : k.machine_code ? '#38a169' : '#3182ce'
                               }}>
                                 {k.revoked ? '已撤销' : k.machine_code ? '已激活' : '未激活'}
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <span style={{ fontSize: '12px', color: '#666' }}>
+                                {k.machine_code ? k.machine_code.slice(0, 20) + '...' : '-'}
                               </span>
                             </td>
                             <td style={styles.td}>{k.expires_at || '-'}</td>
