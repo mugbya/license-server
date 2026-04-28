@@ -949,9 +949,9 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh'
   },
   sidebar: {
-    width: '240px',
+    width: '280px',
     background: 'linear-gradient(180deg, #667eea 0%, #764ba2 100%)',
-    padding: '20px',
+    padding: '24px',
     display: 'flex',
     flexDirection: 'column'
   },
@@ -1078,7 +1078,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%'
   },
   pageTitle: {
-    fontSize: '24px',
+    fontSize: '28px',
     fontWeight: 600,
     marginBottom: '30px',
     color: '#333'
@@ -1090,41 +1090,41 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '24px'
   },
   cardHeader: {
-    padding: '20px 24px',
+    padding: '24px 28px',
     borderBottom: '1px solid #f0f0f0'
   },
   cardTitle: {
-    fontSize: '16px',
+    fontSize: '18px',
     fontWeight: 600,
     color: '#333'
   },
   cardContent: {
-    padding: '24px'
+    padding: '28px'
   },
   field: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    marginBottom: '16px'
+    gap: '10px',
+    marginBottom: '20px'
   },
   label: {
-    fontSize: '14px',
+    fontSize: '16px',
     color: '#666',
     fontWeight: 500
   },
   select: {
-    padding: '12px 16px',
+    padding: '14px 18px',
     border: '1px solid #ddd',
     borderRadius: '8px',
-    fontSize: '15px',
+    fontSize: '16px',
     backgroundColor: '#fafafa',
     cursor: 'pointer'
   },
   input: {
-    padding: '12px 16px',
+    padding: '14px 18px',
     border: '1px solid #ddd',
     borderRadius: '8px',
-    fontSize: '15px',
+    fontSize: '16px',
     backgroundColor: '#fafafa'
   },
   typeSelector: {
