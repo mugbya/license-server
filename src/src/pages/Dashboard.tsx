@@ -970,17 +970,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   projectSelectorLabel: {
     display: 'block',
-    fontSize: '11px',
+    fontSize: '13px',
     color: 'rgba(255,255,255,0.7)',
-    marginBottom: '8px',
+    marginBottom: '10px',
     textTransform: 'uppercase'
   },
   projectSelect: {
     width: '100%',
-    padding: '10px 12px',
+    padding: '12px 14px',
     border: 'none',
     borderRadius: '6px',
-    fontSize: '14px',
+    fontSize: '16px',
     background: 'white',
     cursor: 'pointer'
   },
@@ -1035,10 +1035,10 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '4px'
   },
   subMenuItem: {
-    padding: '12px 18px',
+    padding: '14px 20px',
     border: 'none',
     borderRadius: '6px',
-    fontSize: '15px',
+    fontSize: '16px',
     fontWeight: 500,
     cursor: 'pointer',
     transition: 'all 0.2s',
@@ -1090,54 +1090,54 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '24px'
   },
   cardHeader: {
-    padding: '24px 28px',
+    padding: '28px 32px',
     borderBottom: '1px solid #f0f0f0'
   },
   cardTitle: {
-    fontSize: '18px',
+    fontSize: '20px',
     fontWeight: 600,
     color: '#333'
   },
   cardContent: {
-    padding: '28px'
+    padding: '32px'
   },
   field: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
-    marginBottom: '20px'
+    gap: '12px',
+    marginBottom: '24px'
   },
   label: {
-    fontSize: '16px',
+    fontSize: '18px',
     color: '#666',
     fontWeight: 500
   },
   select: {
-    padding: '14px 18px',
+    padding: '16px 20px',
     border: '1px solid #ddd',
     borderRadius: '8px',
-    fontSize: '16px',
+    fontSize: '18px',
     backgroundColor: '#fafafa',
     cursor: 'pointer'
   },
   input: {
-    padding: '14px 18px',
+    padding: '16px 20px',
     border: '1px solid #ddd',
     borderRadius: '8px',
-    fontSize: '16px',
+    fontSize: '18px',
     backgroundColor: '#fafafa'
   },
   typeSelector: {
     display: 'flex',
-    gap: '12px',
-    marginBottom: '24px'
+    gap: '16px',
+    marginBottom: '28px'
   },
   typeButton: {
     flex: 1,
-    padding: '16px',
+    padding: '18px',
     borderRadius: '10px',
     border: 'none',
-    fontSize: '15px',
+    fontSize: '17px',
     fontWeight: 500,
     cursor: 'pointer',
     transition: 'all 0.2s'
@@ -1146,62 +1146,62 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '8px',
+    gap: '10px',
     width: '100%',
-    padding: '16px',
+    padding: '18px',
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
     borderRadius: '10px',
-    fontSize: '16px',
+    fontSize: '18px',
     fontWeight: 600,
     cursor: 'pointer'
   },
   error: {
-    padding: '12px 16px',
+    padding: '14px 18px',
     background: '#fff5f5',
     color: '#e53e3e',
     borderRadius: '8px',
-    fontSize: '14px',
-    marginTop: '16px'
+    fontSize: '16px',
+    marginTop: '18px'
   },
   resultBox: {
-    marginTop: '24px',
-    padding: '20px',
+    marginTop: '28px',
+    padding: '24px',
     background: '#f8f9ff',
     borderRadius: '10px',
     border: '1px solid #e8ecff'
   },
   resultLabel: {
-    fontSize: '14px',
+    fontSize: '16px',
     color: '#666',
-    marginBottom: '12px'
+    marginBottom: '14px'
   },
   resultKey: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: '16px',
+    gap: '20px',
     background: 'white',
-    padding: '16px 20px',
+    padding: '18px 24px',
     borderRadius: '8px',
     border: '1px solid #ddd'
   },
   copyButton: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
-    padding: '8px 12px',
+    gap: '8px',
+    padding: '10px 16px',
     background: '#667eea',
     color: 'white',
     border: 'none',
     borderRadius: '6px',
-    fontSize: '13px',
+    fontSize: '15px',
     cursor: 'pointer'
   },
   resultHint: {
-    marginTop: '12px',
-    fontSize: '13px',
+    marginTop: '14px',
+    fontSize: '15px',
     color: '#888'
   },
   statsGrid: {
@@ -1270,23 +1270,23 @@ const styles: Record<string, React.CSSProperties> = {
   modal: {
     background: 'white',
     borderRadius: '16px',
-    width: '400px',
+    width: '480px',
     overflow: 'hidden'
   },
   modalTitle: {
-    padding: '20px 24px',
-    fontSize: '18px',
+    padding: '24px 28px',
+    fontSize: '20px',
     fontWeight: 600,
     borderBottom: '1px solid #f0f0f0'
   },
   modalContent: {
-    padding: '24px',
+    padding: '28px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px'
+    gap: '20px'
   },
   modalInput: {
-    padding: '12px 16px',
+    padding: '14px 18px',
     border: '1px solid #ddd',
     borderRadius: '8px',
     fontSize: '15px'

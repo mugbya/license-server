@@ -16,3 +16,10 @@ LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR
 DEFAULT_LICENSE_TYPE = "year"
 YEAR_LICENSE_DAYS = 365
 TRIAL_LICENSE_DAYS = 30
+
+# License key encryption (32 bytes for AES-256)
+# Import from private.py - DO NOT commit private.py to git
+try:
+    from private import LICENSE_SECRET_KEY
+except ImportError:
+    LICENSE_SECRET_KEY = None  # Must be set in private.py

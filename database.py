@@ -2,9 +2,25 @@ import aiosqlite
 from typing import Optional, List
 from datetime import datetime, timedelta
 import hashlib
+import json
+import hmac
 
 # Import from config
-from config import DATABASE_PATH
+from config import DATABASE_PATH, LICENSE_SECRET_KEY
+
+# Validate that LICENSE_SECRET_KEY is set
+if LICENSE_SECRET_KEY is None:
+    raise RuntimeError(
+        "LICENSE_SECRET_KEY not configured. "
+        "Please create private.py with LICENSE_SECRET_KEY set to a 32-byte string."
+    )
+
+try:
+    from Crypto.Cipher import AES
+    import base64
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
 
 # Default admin credentials (username: admin, password: admin123)
 DEFAULT_ADMIN_USERNAME = "admin"
@@ -14,6 +30,86 @@ DEFAULT_ADMIN_PASSWORD = "admin123"
 def hash_password(password: str) -> str:
     """Hash password using SHA256"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def encode_license(license_key: str, license_type: str, expires_at: str = None) -> str:
+    """Encode license info into encrypted license code with format GLY-{base64}"""
+    if not HAS_CRYPTO:
+        # Fallback without encryption (not secure, only for development)
+        return license_key
+
+    # Calculate expiration timestamp
+    exp_timestamp = 0
+    if expires_at:
+        exp_timestamp = int(datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S").timestamp())
+    elif license_type == "permanent":
+        exp_timestamp = 0  # 0 means permanent
+
+    # Build data structure
+    data = {
+        "key": license_key,
+        "type": license_type,
+        "exp": exp_timestamp
+    }
+
+    # Calculate HMAC signature for integrity
+    json_str = json.dumps(data, separators=(',', ':'))
+    sig = hmac.new(
+        LICENSE_SECRET_KEY.encode(),
+        json_str.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    data["sig"] = sig
+
+    # AES-GCM encryption
+    json_str = json.dumps(data, separators=(',', ':'))
+    cipher = AES.new(LICENSE_SECRET_KEY.encode()[:32], AES.MODE_GCM)
+    ciphertext, nonce = cipher.encrypt_and_digest(json_str.encode())
+
+    # Encode as base64 with GLY- prefix
+    encoded = base64.b64encode(nonce + ciphertext).decode()
+    return f"GLY-{encoded}"
+
+
+def decode_license(encoded: str) -> Optional[dict]:
+    """Decode and verify license code. Returns license data or None if invalid."""
+    if not encoded:
+        return None
+
+    if not encoded.startswith("GLY-"):
+        # Not an encrypted license, return None to indicate invalid format
+        return None
+
+    if not HAS_CRYPTO:
+        return None
+
+    try:
+        encrypted = base64.b64decode(encoded[4:])
+        nonce = encrypted[:16]
+        ciphertext = encrypted[16:]
+
+        cipher = AES.new(LICENSE_SECRET_KEY.encode()[:32], AES.MODE_GCM, nonce=nonce)
+        json_str = cipher.decrypt_and_verify(ciphertext, cipher.digest).decode()
+        data = json.loads(json_str)
+
+        # Verify signature
+        sig = data.pop("sig", None)
+        if not sig:
+            return None
+
+        json_data = json.dumps(data, separators=(',', ':'))
+        expected_sig = hmac.new(
+            LICENSE_SECRET_KEY.encode(),
+            json_data.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        if sig != expected_sig:
+            return None
+
+        return data
+    except Exception:
+        return None
 
 
 async def init_db():
@@ -139,8 +235,33 @@ async def get_license_by_key(license_key: str) -> Optional[dict]:
 
 async def activate_license(license_key: str, machine_code: str) -> dict:
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        # Get the license key info
-        license = await get_license_by_key(license_key)
+        # Try to decode license if it's in the encrypted format (GLY-...)
+        original_key = license_key
+        decoded_info = None
+
+        if license_key.startswith("GLY-"):
+            decoded_info = decode_license(license_key)
+            if decoded_info:
+                original_key = decoded_info["key"]
+                # Verify the license type matches
+                stored_license = await get_license_by_key(original_key)
+                if stored_license and stored_license["license_type"] != decoded_info.get("type"):
+                    return {"success": False, "error": "授权码类型不匹配"}
+            # If decoding fails, still try with original key (plain format)
+
+        # Get the license key info - try decoded key first, then try as-is
+        license = None
+
+        # If we decoded successfully, try the decoded key first
+        if decoded_info:
+            license = await get_license_by_key(original_key)
+
+        # If not found or wasn't encoded, try with the key as-is
+        if not license:
+            license = await get_license_by_key(license_key)
+            if license:
+                original_key = license_key
+
         if not license:
             return {"success": False, "error": "授权码无效"}
 
@@ -164,7 +285,7 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
             """UPDATE license_keys
                SET machine_code = ?, activated_at = ?, expires_at = ?, updated_at = datetime('now')
                WHERE license_key = ?""",
-            (machine_code, activated_at, expires_at, license_key)
+            (machine_code, activated_at, expires_at, original_key)
         )
         await db.commit()
 
@@ -178,8 +299,29 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
 
 async def verify_license(machine_code: str, license_key: str) -> dict:
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        # Verify specific license key
-        license = await get_license_by_key(license_key)
+        # Decode license if it's in the new encrypted format
+        original_key = license_key
+        encoded_exp = None  # Expiry from encoded license for validation
+
+        if license_key.startswith("GLY-"):
+            decoded = decode_license(license_key)
+            if decoded:
+                original_key = decoded["key"]
+                # Get expiry from encoded license (0 means permanent)
+                encoded_exp = decoded.get("exp", 0)
+                # If encoded expiry is 0, it's permanent; otherwise it's a timestamp
+                if encoded_exp == 0:
+                    encoded_exp = None  # Permanent
+            # If decoding fails, we'll try the key as-is below
+
+        # Verify specific license key - try decoded key first, then key as-is
+        license = await get_license_by_key(original_key)
+        if not license:
+            # Try with key as-is (in case it was stored unencrypted or decoding failed)
+            license = await get_license_by_key(license_key)
+            if license:
+                original_key = license_key
+
         if not license:
             return {"valid": False, "error": "授权码无效"}
 
@@ -189,7 +331,13 @@ async def verify_license(machine_code: str, license_key: str) -> dict:
         if license["machine_code"] != machine_code:
             return {"valid": False, "error": "授权码与机器不匹配"}
 
-        if license["expires_at"]:
+        # Check expiry from encoded license first (more secure)
+        if encoded_exp is not None:
+            # encoded_exp is a Unix timestamp
+            if encoded_exp > 0 and encoded_exp < datetime.now().timestamp():
+                return {"valid": False, "error": "授权已过期"}
+        elif license["expires_at"]:
+            # Fallback to database expiry
             expires_dt = datetime.strptime(license["expires_at"], "%Y-%m-%d %H:%M:%S")
             if expires_dt < datetime.now():
                 return {"valid": False, "error": "授权已过期"}
@@ -223,7 +371,11 @@ async def create_license_key(license_key: str, license_type: str, project: str =
             (license_key, license_type, project, final_expires_at)
         )
         await db.commit()
-        return {"success": True, "expires_at": final_expires_at}
+
+        # Encode the license key with expiry embedded
+        encoded_key = encode_license(license_key, license_type, final_expires_at)
+
+        return {"success": True, "expires_at": final_expires_at, "encoded_key": encoded_key}
 
 
 async def revoke_license(license_key: str) -> dict:

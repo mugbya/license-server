@@ -3,7 +3,10 @@ license_server.db
 .license_server.db
 logs/
 .DS_Store
-
+.idea/
 node_modules
 dist/
 .vite/
+
+# Private configuration - contains sensitive keys
+private.py
