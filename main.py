@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
 from routers.license import router as license_router
 from routers.admin import router as admin_router
+from routers.projects import router as projects_router
 import uvicorn
 
 app = FastAPI(title="License Server", version="1.0.0")
@@ -19,6 +20,7 @@ app.add_middleware(
 # Include routers
 app.include_router(license_router, prefix="/api/license", tags=["license"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+app.include_router(projects_router, prefix="/api/projects", tags=["projects"])
 
 
 @app.on_event("startup")

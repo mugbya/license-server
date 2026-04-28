@@ -1,13 +1,24 @@
-import { useState } from 'react'
-import { Key, BarChart3, LogOut, Copy, Check, Plus, RefreshCw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Key, BarChart3, LogOut, Copy, Check, Plus, RefreshCw, Folder, Edit2, Trash2, X } from 'lucide-react'
 
 interface DashboardProps {
   onLogout: () => void
 }
 
+interface Project {
+  id: number
+  name: string
+  code: string
+  disabled: boolean
+  created_at: string
+  updated_at: string
+}
+
 export default function Dashboard({ onLogout }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'generate' | 'stats'>('generate')
-  const [licenseType, setLicenseType] = useState<'year' | 'permanent'>('year')
+  const [activeTab, setActiveTab] = useState<'generate' | 'stats' | 'projects'>('generate')
+  const [licenseType, setLicenseType] = useState<'year' | 'permanent' | 'custom'>('year')
+  const [project, setProject] = useState('zupu')
+  const [customExpiry, setCustomExpiry] = useState('')
   const [generatedKey, setGeneratedKey] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -19,15 +30,40 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [newPassword, setNewPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
 
+  // Projects management
+  const [projects, setProjects] = useState<Project[]>([])
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false)
+  const [showProjectModal, setShowProjectModal] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [projectForm, setProjectForm] = useState({ name: '', code: '', disabled: false })
+  const [projectError, setProjectError] = useState('')
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+
+  // 加载项目列表
+  useEffect(() => {
+    loadProjects()
+  }, [])
+
   const generateKey = async () => {
     setIsGenerating(true)
     setError('')
     setGeneratedKey('')
 
     try {
-      const prefix = licenseType === 'year' ? 'GLY' : 'GLP'
+      const prefix = licenseType === 'permanent' ? 'GLP' : 'GLY'
       const randomPart = () => Math.random().toString(36).substring(2, 6).toUpperCase()
       const newKey = `${prefix}-${randomPart()}-${randomPart()}-${randomPart()}-${randomPart()}`
+
+      // Calculate expires_at based on license type
+      let expiresAt = null
+      if (licenseType === 'year') {
+        const d = new Date()
+        d.setFullYear(d.getFullYear() + 1)
+        expiresAt = d.toISOString().slice(0, 19).replace('T', ' ')
+      } else if (licenseType === 'custom' && customExpiry) {
+        // Convert datetime-local format (YYYY-MM-DDTHH:MM) to backend format (YYYY-MM-DD HH:MM:SS)
+        expiresAt = customExpiry + ':00'
+      }
 
       const res = await fetch('/api/license/create_key', {
         method: 'POST',
@@ -35,10 +71,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
         },
-        body: JSON.stringify({ license_key: newKey, license_type: licenseType })
+        body: JSON.stringify({
+          license_key: newKey,
+          license_type: licenseType === 'custom' ? 'year' : licenseType,
+          project: project,
+          expires_at: expiresAt
+        })
       })
 
       if (res.ok) {
+        const data = await res.json()
         setGeneratedKey(newKey)
       } else {
         const data = await res.json()
@@ -108,6 +150,100 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
+  // Project management functions
+  const loadProjects = async () => {
+    setIsLoadingProjects(true)
+    try {
+      const res = await fetch('/api/projects', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setProjects(data.data)
+      }
+    } catch (err) {
+      console.error('加载项目失败:', err)
+    } finally {
+      setIsLoadingProjects(false)
+    }
+  }
+
+  const openProjectModal = (project?: Project) => {
+    if (project) {
+      setEditingProject(project)
+      setProjectForm({ name: project.name, code: project.code, disabled: project.disabled })
+    } else {
+      setEditingProject(null)
+      setProjectForm({ name: '', code: '', disabled: false })
+    }
+    setProjectError('')
+    setShowProjectModal(true)
+  }
+
+  const closeProjectModal = () => {
+    setShowProjectModal(false)
+    setEditingProject(null)
+    setProjectForm({ name: '', code: '', disabled: false })
+    setProjectError('')
+  }
+
+  const saveProject = async () => {
+    setProjectError('')
+    if (!projectForm.name || !projectForm.code) {
+      setProjectError('请填写名称和编码')
+      return
+    }
+
+    try {
+      const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects'
+      const method = editingProject ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        },
+        body: JSON.stringify(projectForm)
+      })
+
+      if (res.ok) {
+        closeProjectModal()
+        loadProjects()
+      } else {
+        const data = await res.json()
+        setProjectError(data.detail || '保存失败')
+      }
+    } catch (err) {
+      setProjectError('网络错误')
+    }
+  }
+
+  const deleteProject = async (project: Project) => {
+    if (!confirm(`确定要删除项目"${project.name}"吗？`)) return
+
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (res.ok) {
+        loadProjects()
+        if (selectedProject?.id === project.id) {
+          setSelectedProject(null)
+        }
+      } else {
+        const data = await res.json()
+        alert(data.detail || '删除失败')
+      }
+    } catch (err) {
+      alert('网络错误')
+    }
+  }
+
+  const viewProject = (project: Project) => {
+    setSelectedProject(project)
+  }
+
   return (
     <div style={styles.container}>
       {/* 侧边栏 */}
@@ -140,6 +276,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             <BarChart3 size={20} />
             <span>使用统计</span>
           </button>
+          <button
+            onClick={() => { setActiveTab('projects'); loadProjects(); }}
+            style={{
+              ...styles.navItem,
+              backgroundColor: activeTab === 'projects' ? 'white' : 'transparent',
+              color: activeTab === 'projects' ? '#667eea' : 'white'
+            }}
+          >
+            <Folder size={20} />
+            <span>项目管理</span>
+          </button>
         </nav>
 
         <div style={styles.bottom}>
@@ -170,6 +317,21 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 <h3 style={styles.cardTitle}>授权类型</h3>
               </div>
               <div style={styles.cardContent}>
+                {/* 项目选择 */}
+                <div style={styles.field}>
+                  <label style={styles.label}>项目</label>
+                  <select
+                    value={project}
+                    onChange={(e) => setProject(e.target.value)}
+                    style={styles.select}
+                  >
+                    {projects.length === 0 && <option value="zupu">祖谱 (默认)</option>}
+                    {projects.map(p => (
+                      <option key={p.id} value={p.code}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div style={styles.typeSelector}>
                   <button
                     onClick={() => setLicenseType('year')}
@@ -191,11 +353,34 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   >
                     永久授权
                   </button>
+                  <button
+                    onClick={() => setLicenseType('custom')}
+                    style={{
+                      ...styles.typeButton,
+                      backgroundColor: licenseType === 'custom' ? '#667eea' : '#f5f5f5',
+                      color: licenseType === 'custom' ? 'white' : '#333'
+                    }}
+                  >
+                    自定义
+                  </button>
                 </div>
+
+                {/* 自定义到期时间 */}
+                {licenseType === 'custom' && (
+                  <div style={styles.field}>
+                    <label style={styles.label}>到期时间</label>
+                    <input
+                      type="datetime-local"
+                      value={customExpiry}
+                      onChange={(e) => setCustomExpiry(e.target.value)}
+                      style={styles.input}
+                    />
+                  </div>
+                )}
 
                 <button
                   onClick={generateKey}
-                  disabled={isGenerating}
+                  disabled={isGenerating || (licenseType === 'custom' && !customExpiry)}
                   style={styles.generateButton}
                 >
                   {isGenerating ? <RefreshCw size={20} className="spin" /> : <Plus size={20} />}
@@ -217,7 +402,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       </button>
                     </div>
                     <div style={styles.resultHint}>
-                      {licenseType === 'year' ? '年度授权，自发放日起1年内有效' : '永久授权，无有效期限制'}
+                      {licenseType === 'year' ? '年度授权，自发放日起1年内有效' :
+                       licenseType === 'permanent' ? '永久授权，无有效期限制' :
+                       `自定义到期时间: ${customExpiry}`}
+                      {project && <span> | 项目: {project}</span>}
                     </div>
                   </div>
                 )}
@@ -321,6 +509,131 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             )}
           </div>
         )}
+
+        {activeTab === 'projects' && (
+          <div style={styles.content}>
+            <div style={styles.contentHeader}>
+              <h2 style={styles.pageTitle}>项目管理</h2>
+              <button onClick={() => openProjectModal()} style={styles.addButton}>
+                <Plus size={18} />
+                <span>新增项目</span>
+              </button>
+            </div>
+
+            {error && <div style={styles.error}>{error}</div>}
+
+            {isLoadingProjects ? (
+              <div style={styles.loading}>加载中...</div>
+            ) : (
+              <div style={styles.card}>
+                <div style={styles.cardContent}>
+                  {projects.length > 0 ? (
+                    <table style={styles.table}>
+                      <thead>
+                        <tr>
+                          <th style={styles.th}>名称</th>
+                          <th style={styles.th}>编码</th>
+                          <th style={styles.th}>状态</th>
+                          <th style={styles.th}>创建时间</th>
+                          <th style={styles.th}>操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projects.map((p) => (
+                          <tr key={p.id} style={styles.tr}>
+                            <td style={styles.td}>{p.name}</td>
+                            <td style={styles.td}>
+                              <code style={styles.code}>{p.code}</code>
+                            </td>
+                            <td style={styles.td}>
+                              <span style={{
+                                ...styles.badge,
+                                backgroundColor: p.disabled ? '#fee' : '#efe',
+                                color: p.disabled ? '#e53e3e' : '#38a169'
+                              }}>
+                                {p.disabled ? '已禁用' : '启用'}
+                              </span>
+                            </td>
+                            <td style={styles.td}>{p.created_at}</td>
+                            <td style={styles.td}>
+                              <div style={styles.actions}>
+                                <button
+                                  onClick={() => openProjectModal(p)}
+                                  style={styles.actionButton}
+                                  title="编辑"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => deleteProject(p)}
+                                  style={{ ...styles.actionButton, color: '#e53e3e' }}
+                                  title="删除"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={styles.empty}>暂无项目，点击"新增项目"添加</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 项目详情 */}
+            {selectedProject && (
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <h3 style={styles.cardTitle}>项目详情</h3>
+                </div>
+                <div style={styles.cardContent}>
+                  <div style={styles.detailGrid}>
+                    <div style={styles.detailItem}>
+                      <label style={styles.detailLabel}>名称</label>
+                      <div style={styles.detailValue}>{selectedProject.name}</div>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <label style={styles.detailLabel}>编码</label>
+                      <div style={styles.detailValue}>
+                        <code style={styles.code}>{selectedProject.code}</code>
+                      </div>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <label style={styles.detailLabel}>状态</label>
+                      <div style={styles.detailValue}>
+                        <span style={{
+                          ...styles.badge,
+                          backgroundColor: selectedProject.disabled ? '#fee' : '#efe',
+                          color: selectedProject.disabled ? '#e53e3e' : '#38a169'
+                        }}>
+                          {selectedProject.disabled ? '已禁用' : '启用'}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <label style={styles.detailLabel}>创建时间</label>
+                      <div style={styles.detailValue}>{selectedProject.created_at}</div>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <label style={styles.detailLabel}>更新时间</label>
+                      <div style={styles.detailValue}>{selectedProject.updated_at}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedProject(null)}
+                    style={styles.closeDetailButton}
+                  >
+                    关闭详情
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* 修改密码弹窗 */}
@@ -348,6 +661,58 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             <div style={styles.modalFooter}>
               <button onClick={() => setShowPasswordModal(false)} style={styles.cancelButton}>取消</button>
               <button onClick={changePassword} style={styles.confirmButton}>确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 项目管理弹窗 */}
+      {showProjectModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modal}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>{editingProject ? '编辑项目' : '新增项目'}</h3>
+              <button onClick={closeProjectModal} style={styles.closeButton}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={styles.modalContent}>
+              <div style={styles.formField}>
+                <label style={styles.formLabel}>名称</label>
+                <input
+                  type="text"
+                  placeholder="请输入项目名称"
+                  value={projectForm.name}
+                  onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })}
+                  style={styles.modalInput}
+                />
+              </div>
+              <div style={styles.formField}>
+                <label style={styles.formLabel}>编码</label>
+                <input
+                  type="text"
+                  placeholder="请输入项目编码"
+                  value={projectForm.code}
+                  onChange={(e) => setProjectForm({ ...projectForm, code: e.target.value })}
+                  style={styles.modalInput}
+                />
+              </div>
+              <div style={styles.formField}>
+                <label style={styles.formLabel}>
+                  <input
+                    type="checkbox"
+                    checked={projectForm.disabled}
+                    onChange={(e) => setProjectForm({ ...projectForm, disabled: e.target.checked })}
+                    style={styles.checkbox}
+                  />
+                  禁用该项目
+                </label>
+              </div>
+              {projectError && <div style={styles.error}>{projectError}</div>}
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={closeProjectModal} style={styles.cancelButton}>取消</button>
+              <button onClick={saveProject} style={styles.confirmButton}>保存</button>
             </div>
           </div>
         </div>
@@ -435,6 +800,32 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardContent: {
     padding: '24px'
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginBottom: '16px'
+  },
+  label: {
+    fontSize: '14px',
+    color: '#666',
+    fontWeight: 500
+  },
+  select: {
+    padding: '12px 16px',
+    border: '1px solid #ddd',
+    borderRadius: '8px',
+    fontSize: '15px',
+    backgroundColor: '#fafafa',
+    cursor: 'pointer'
+  },
+  input: {
+    padding: '12px 16px',
+    border: '1px solid #ddd',
+    borderRadius: '8px',
+    fontSize: '15px',
+    backgroundColor: '#fafafa'
   },
   typeSelector: {
     display: 'flex',
@@ -622,6 +1013,118 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: '8px',
     fontSize: '14px',
+    cursor: 'pointer'
+  },
+  // Projects page styles
+  contentHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '30px'
+  },
+  addButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 16px',
+    background: '#667eea',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    cursor: 'pointer'
+  },
+  code: {
+    padding: '2px 6px',
+    background: '#f5f5f5',
+    borderRadius: '4px',
+    fontSize: '13px',
+    fontFamily: 'monospace'
+  },
+  badge: {
+    padding: '4px 10px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    fontWeight: 500
+  },
+  actions: {
+    display: 'flex',
+    gap: '8px'
+  },
+  actionButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    background: '#f5f5f5',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    color: '#666'
+  },
+  detailGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '20px'
+  },
+  detailItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  },
+  detailLabel: {
+    fontSize: '13px',
+    color: '#888'
+  },
+  detailValue: {
+    fontSize: '15px',
+    color: '#333'
+  },
+  closeDetailButton: {
+    marginTop: '20px',
+    padding: '10px 16px',
+    background: '#f5f5f5',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    cursor: 'pointer'
+  },
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '20px 24px',
+    borderBottom: '1px solid #f0f0f0'
+  },
+  closeButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    background: 'none',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    color: '#999'
+  },
+  formField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  formLabel: {
+    fontSize: '14px',
+    color: '#666',
+    fontWeight: 500,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  checkbox: {
+    width: '16px',
+    height: '16px',
     cursor: 'pointer'
   }
 }

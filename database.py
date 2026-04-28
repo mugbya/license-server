@@ -34,6 +34,7 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 license_key TEXT NOT NULL UNIQUE,
                 license_type TEXT NOT NULL,
+                project TEXT NOT NULL DEFAULT 'zupu',
                 machine_code TEXT,
                 activated_at TEXT,
                 expires_at TEXT,
@@ -42,6 +43,12 @@ async def init_db():
                 updated_at TEXT DEFAULT (datetime('now'))
             )
         """)
+
+        # Add project column if it doesn't exist (for existing databases)
+        try:
+            await db.execute("ALTER TABLE license_keys ADD COLUMN project TEXT NOT NULL DEFAULT 'zupu'")
+        except:
+            pass
 
         # Usage logs table
         await db.execute("""
@@ -68,6 +75,18 @@ async def init_db():
                 city TEXT,
                 report_date TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Projects table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                code TEXT NOT NULL UNIQUE,
+                disabled INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
             )
         """)
 
@@ -173,19 +192,27 @@ async def verify_license(machine_code: str, license_key: str) -> dict:
         }
 
 
-async def create_license_key(license_key: str, license_type: str) -> dict:
+async def create_license_key(license_key: str, license_type: str, project: str = "zupu", expires_at: str = None) -> dict:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         # Check if key already exists
         existing = await get_license_by_key(license_key)
         if existing:
             return {"success": False, "error": "授权码已存在"}
 
+        # If custom expires_at is provided, use it; otherwise calculate based on license_type
+        final_expires_at = expires_at
+        if not final_expires_at:
+            if license_type == "year":
+                final_expires_at = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+            elif license_type == "trial":
+                final_expires_at = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+
         await db.execute(
-            "INSERT INTO license_keys (license_key, license_type) VALUES (?, ?)",
-            (license_key, license_type)
+            "INSERT INTO license_keys (license_key, license_type, project, expires_at) VALUES (?, ?, ?, ?)",
+            (license_key, license_type, project, final_expires_at)
         )
         await db.commit()
-        return {"success": True}
+        return {"success": True, "expires_at": final_expires_at}
 
 
 async def revoke_license(license_key: str) -> dict:
@@ -312,5 +339,92 @@ async def change_admin_password(username: str, current_password: str, new_passwo
             "UPDATE admin_users SET password_hash = ?, updated_at = datetime('now') WHERE username = ?",
             (hash_password(new_password), username)
         )
+        await db.commit()
+        return {"success": True}
+
+
+# Project CRUD operations
+async def get_all_projects() -> List[dict]:
+    """Get all projects"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            "SELECT id, name, code, disabled, created_at, updated_at FROM projects ORDER BY created_at DESC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            {
+                "id": r[0],
+                "name": r[1],
+                "code": r[2],
+                "disabled": bool(r[3]),
+                "created_at": r[4],
+                "updated_at": r[5]
+            }
+            for r in rows
+        ]
+
+
+async def get_project_by_id(project_id: int) -> Optional[dict]:
+    """Get project by ID"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            "SELECT id, name, code, disabled, created_at, updated_at FROM projects WHERE id = ?",
+            (project_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return {
+                "id": row[0],
+                "name": row[1],
+                "code": row[2],
+                "disabled": bool(row[3]),
+                "created_at": row[4],
+                "updated_at": row[5]
+            }
+        return None
+
+
+async def create_project(name: str, code: str) -> dict:
+    """Create a new project"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Check if code already exists
+        async with db.execute("SELECT id FROM projects WHERE code = ?", (code,)) as cursor:
+            if await cursor.fetchone():
+                return {"success": False, "error": "项目编码已存在"}
+
+        await db.execute(
+            "INSERT INTO projects (name, code) VALUES (?, ?)",
+            (name, code)
+        )
+        await db.commit()
+        return {"success": True}
+
+
+async def update_project(project_id: int, name: str, code: str, disabled: bool) -> dict:
+    """Update a project"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Check if code already exists for other project
+        async with db.execute("SELECT id FROM projects WHERE code = ? AND id != ?", (code, project_id)) as cursor:
+            if await cursor.fetchone():
+                return {"success": False, "error": "项目编码已被其他项目使用"}
+
+        await db.execute(
+            "UPDATE projects SET name = ?, code = ?, disabled = ?, updated_at = datetime('now') WHERE id = ?",
+            (name, code, 1 if disabled else 0, project_id)
+        )
+        await db.commit()
+        return {"success": True}
+
+
+async def delete_project(project_id: int) -> dict:
+    """Delete a project"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Check if project has license keys
+        async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = (SELECT code FROM projects WHERE id = ?)", (project_id,)) as cursor:
+            count = (await cursor.fetchone())[0]
+        if count > 0:
+            return {"success": False, "error": "该项目下存在授权码，无法删除"}
+
+        await db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
         await db.commit()
         return {"success": True}

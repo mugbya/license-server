@@ -30,3 +30,16 @@ class VerifyLicenseRequest(BaseModel):
 class CreateLicenseKeyRequest(BaseModel):
     license_key: str
     license_type: str  # 'year' | 'permanent'
+    project: str = "zupu"  # 项目标识，如 'zupu'
+    expires_at: Optional[str] = None  # 自定义到期时间，格式: 'YYYY-MM-DD HH:MM:SS'，为空则按 license_type 自动计算
+
+
+class CreateProjectRequest(BaseModel):
+    name: str
+    code: str
+
+
+class UpdateProjectRequest(BaseModel):
+    name: str
+    code: str
+    disabled: bool
