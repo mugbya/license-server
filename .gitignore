@@ -1,6 +1,6 @@
 __pycache__/
 license_server.db
-
+logs/
 .DS_Store
 
 node_modules
