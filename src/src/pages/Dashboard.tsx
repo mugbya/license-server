@@ -15,7 +15,7 @@ interface Project {
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'generate' | 'stats' | 'projects'>('generate')
+  const [activeTab, setActiveTab] = useState<'generate' | 'stats' | 'projects' | 'keys'>('generate')
   const [licenseType, setLicenseType] = useState<'year' | 'permanent' | 'custom'>('year')
   const [customExpiry, setCustomExpiry] = useState('')
   const [generatedKey, setGeneratedKey] = useState('')
@@ -28,6 +28,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
+
+  // License keys management
+  const [licenseKeys, setLicenseKeys] = useState<any[]>([])
+  const [keysStats, setKeysStats] = useState<any>(null)
+  const [isLoadingKeys, setIsLoadingKeys] = useState(false)
 
   // Projects management
   const [projects, setProjects] = useState<Project[]>([])
@@ -62,7 +67,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         expiresAt = d.toISOString().slice(0, 19).replace('T', ' ')
       } else if (licenseType === 'custom' && customExpiry) {
         // Convert datetime-local format (YYYY-MM-DDTHH:MM) to backend format (YYYY-MM-DD HH:MM:SS)
-        expiresAt = customExpiry + ':00'
+        expiresAt = customExpiry.replace('T', ' ') + ':00'
       }
 
       const res = await fetch('/api/license/create_key', {
@@ -73,7 +78,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         },
         body: JSON.stringify({
           license_key: newKey,
-          license_type: licenseType === 'custom' ? 'year' : licenseType,
+          license_type: licenseType,
           project: currentProject?.code || 'zupu',
           expires_at: expiresAt
         })
@@ -82,6 +87,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       if (res.ok) {
         const data = await res.json()
         setGeneratedKey(newKey)
+        // Refresh the license keys list
+        loadLicenseKeys()
       } else {
         const data = await res.json()
         setError(data.detail || '生成失败')
@@ -246,6 +253,53 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
+  // License Keys management functions
+  const loadLicenseKeys = async () => {
+    setIsLoadingKeys(true)
+    try {
+      const url = currentProject ? `/api/license/keys?project=${currentProject.code}` : '/api/license/keys'
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setLicenseKeys(data.data)
+      }
+      // Load stats too
+      const statsUrl = currentProject ? `/api/license/keys/stats?project=${currentProject.code}` : '/api/license/keys/stats'
+      const statsRes = await fetch(statsUrl, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        setKeysStats(statsData.data)
+      }
+    } catch (err) {
+      console.error('加载序列码失败:', err)
+    } finally {
+      setIsLoadingKeys(false)
+    }
+  }
+
+  const revokeLicenseKey = async (licenseKey: string) => {
+    if (!confirm(`确定要撤销序列码 ${licenseKey} 吗？`)) return
+
+    try {
+      const res = await fetch(`/api/license/revoke?license_key=${encodeURIComponent(licenseKey)}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (res.ok) {
+        loadLicenseKeys()
+      } else {
+        const data = await res.json()
+        alert(data.detail || '撤销失败')
+      }
+    } catch (err) {
+      alert('网络错误')
+    }
+  }
+
   return (
     <div style={styles.container}>
       {/* 侧边栏 */}
@@ -300,13 +354,24 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 <BarChart3 size={20} />
                 <span>使用统计</span>
               </button>
+              <button
+                onClick={() => { setActiveTab('keys'); loadLicenseKeys(); }}
+                style={{
+                  ...styles.navItem,
+                  backgroundColor: activeTab === 'keys' ? 'white' : 'transparent',
+                  color: activeTab === 'keys' ? '#667eea' : 'white'
+                }}
+              >
+                <Key size={20} />
+                <span>序列码管理</span>
+              </button>
             </div>
           </nav>
         )}
 
         <div style={styles.bottom}>
           <button
-            onClick={() => { console.log('项目管理 clicked, activeTab:', activeTab); setActiveTab('projects'); loadProjects(); }}
+            onClick={() => { setActiveTab('projects'); loadProjects(); }}
             style={styles.navItem}
           >
             <Folder size={20} />
@@ -602,6 +667,103 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     </table>
                   ) : (
                     <div style={styles.empty}>暂无项目，点击"新增项目"添加</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'keys' && currentProject && (
+          <div style={styles.content}>
+            <h2 style={styles.pageTitle}>序列码管理 - {currentProject.name}</h2>
+
+            {/* 统计卡片 */}
+            {keysStats && (
+              <div style={styles.statsGrid}>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{keysStats.total || 0}</div>
+                  <div style={styles.statLabel}>总序列码</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{keysStats.activated || 0}</div>
+                  <div style={styles.statLabel}>已激活</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={styles.statValue}>{keysStats.revoked || 0}</div>
+                  <div style={styles.statLabel}>已撤销</div>
+                </div>
+              </div>
+            )}
+
+            {error && <div style={styles.error}>{error}</div>}
+
+            {isLoadingKeys ? (
+              <div style={styles.loading}>加载中...</div>
+            ) : (
+              <div style={styles.card}>
+                <div style={styles.cardContent}>
+                  {licenseKeys.length > 0 ? (
+                    <table style={styles.table}>
+                      <thead>
+                        <tr>
+                          <th style={styles.th}>序列码</th>
+                          <th style={styles.th}>类型</th>
+                          <th style={styles.th}>状态</th>
+                          <th style={styles.th}>到期时间</th>
+                          <th style={styles.th}>是否过期</th>
+                          <th style={styles.th}>操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {licenseKeys.map((k) => (
+                          <tr key={k.id} style={styles.tr}>
+                            <td style={styles.td}>
+                              <code style={styles.code}>{k.license_key}</code>
+                            </td>
+                            <td style={styles.td}>
+                              {k.license_type === 'year' ? '年度' : k.license_type === 'permanent' ? '永久' : k.license_type === 'custom' ? '自定义' : k.license_type}
+                            </td>
+                            <td style={styles.td}>
+                              <span style={{
+                                ...styles.badge,
+                                backgroundColor: k.revoked ? '#fee' : k.machine_code ? '#efe' : '#eef',
+                                color: k.revoked ? '#e53e3e' : k.machine_code ? '#38a169' : '#3182ce'
+                              }}>
+                                {k.revoked ? '已撤销' : k.machine_code ? '已激活' : '未激活'}
+                              </span>
+                            </td>
+                            <td style={styles.td}>{k.expires_at || '-'}</td>
+                            <td style={styles.td}>
+                              {k.expires_at ? (
+                                new Date(k.expires_at) < new Date() ? (
+                                  <span style={{ color: '#e53e3e' }}>已过期</span>
+                                ) : (
+                                  <span style={{ color: '#38a169' }}>有效</span>
+                                )
+                              ) : (
+                                <span style={{ color: '#666' }}>-</span>
+                              )}
+                            </td>
+                            <td style={styles.td}>
+                              <div style={styles.actions}>
+                                {!k.revoked && (
+                                  <button
+                                    onClick={() => revokeLicenseKey(k.license_key)}
+                                    style={{ ...styles.actionButton, color: '#e53e3e' }}
+                                    title="撤销"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={styles.empty}>暂无序列码，点击"生成序列码"创建</div>
                   )}
                 </div>
               </div>

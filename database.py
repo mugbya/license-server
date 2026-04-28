@@ -213,6 +213,8 @@ async def create_license_key(license_key: str, license_type: str, project: str =
                 final_expires_at = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
             elif license_type == "trial":
                 final_expires_at = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+            elif license_type == "permanent":
+                final_expires_at = None  # 永久授权没有到期时间
 
         await db.execute(
             "INSERT INTO license_keys (license_key, license_type, project, expires_at) VALUES (?, ?, ?, ?)",
@@ -230,6 +232,85 @@ async def revoke_license(license_key: str) -> dict:
         )
         await db.commit()
         return {"success": True}
+
+
+async def get_all_license_keys(project: str = None) -> List[dict]:
+    """Get all license keys, optionally filtered by project"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        if project:
+            async with db.execute(
+                """SELECT id, license_key, license_type, project, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+                   FROM license_keys WHERE project = ? ORDER BY created_at DESC""",
+                (project,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+        else:
+            async with db.execute(
+                """SELECT id, license_key, license_type, project, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+                   FROM license_keys ORDER BY created_at DESC"""
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        return [
+            {
+                "id": r[0],
+                "license_key": r[1],
+                "license_type": r[2],
+                "project": r[3],
+                "machine_code": r[4],
+                "activated_at": r[5],
+                "expires_at": r[6],
+                "revoked": bool(r[7]),
+                "created_at": r[8],
+                "updated_at": r[9]
+            }
+            for r in rows
+        ]
+
+
+async def get_license_key_stats(project: str = None) -> dict:
+    """Get license key statistics"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        project_filter = f"WHERE project = '{project}'" if project else ""
+
+        # Total keys
+        async with db.execute(f"SELECT COUNT(*) FROM license_keys {project_filter}") as cursor:
+            total_keys = (await cursor.fetchone())[0]
+
+        # Activated keys
+        async with db.execute(f"SELECT COUNT(*) FROM license_keys {project_filter} AND machine_code IS NOT NULL") as cursor:
+            activated_keys = (await cursor.fetchone())[0]
+
+        # Revoked keys
+        async with db.execute(f"SELECT COUNT(*) FROM license_keys {project_filter} AND revoked = 1") as cursor:
+            revoked_keys = (await cursor.fetchone())[0]
+
+        # By license type
+        async with db.execute(
+            f"""SELECT license_type, COUNT(*) as count
+               FROM license_keys {project_filter}
+               GROUP BY license_type"""
+        ) as cursor:
+            by_type = await cursor.fetchall()
+
+        # By project (if no project filter)
+        if not project:
+            async with db.execute(
+                """SELECT project, COUNT(*) as count
+                   FROM license_keys
+                   GROUP BY project"""
+            ) as cursor:
+                by_project = await cursor.fetchall()
+        else:
+            by_project = []
+
+        return {
+            "total": total_keys,
+            "activated": activated_keys,
+            "revoked": revoked_keys,
+            "by_type": [{"type": r[0], "count": r[1]} for r in by_type],
+            "by_project": [{"project": r[0], "count": r[1]} for r in by_project]
+        }
 
 
 async def log_usage(machine_code: str, action: str, license_key: str = None, ip_address: str = None):

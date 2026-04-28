@@ -68,3 +68,17 @@ async def revoke(license_key: str):
     if result.get("success"):
         return {"success": True}
     raise HTTPException(status_code=400, detail="Failed to revoke key")
+
+
+@router.get("/keys")
+async def list_keys(project: str = None):
+    """List all license keys (admin only)"""
+    keys = await db.get_all_license_keys(project)
+    return {"success": True, "data": keys}
+
+
+@router.get("/keys/stats")
+async def get_keys_stats(project: str = None):
+    """Get license key statistics (admin only)"""
+    stats = await db.get_license_key_stats(project)
+    return {"success": True, "data": stats}
