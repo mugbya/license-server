@@ -304,7 +304,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         <div style={styles.bottom}>
           <button
-            onClick={() => { loadProjects(); }}
+            onClick={() => { console.log('项目管理 clicked, activeTab:', activeTab); setActiveTab('projects'); loadProjects(); }}
             style={styles.navItem}
           >
             <Folder size={20} />
@@ -328,7 +328,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* 主内容 */}
       <main style={styles.main}>
-        {!currentProject && !activeTab && (
+        {!currentProject && (
           <div style={styles.content}>
             <h2 style={styles.pageTitle}>欢迎使用授权管理系统</h2>
             <div style={styles.card}>
@@ -531,7 +531,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           </div>
         )}
 
-        {activeTab === 'projects' && !currentProject && (
+        {activeTab === 'projects' && (
           <div style={styles.content}>
             <div style={styles.contentHeader}>
               <h2 style={styles.pageTitle}>项目管理</h2>
