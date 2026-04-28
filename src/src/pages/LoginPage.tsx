@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Key, AlertCircle, Eye, EyeOff, User, X } from 'lucide-react'
 
 interface LoginPageProps {
@@ -12,29 +12,48 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [savedAccounts, setSavedAccounts] = useState<{ username: string; password: string }[]>([])
+  const savedAccountsRef = useRef<{ username: string; password: string }[]>([])
 
   // 加载保存的账号
   useEffect(() => {
     const saved = localStorage.getItem('saved_admin_accounts')
     if (saved) {
-      setSavedAccounts(JSON.parse(saved))
+      try {
+        const parsed = JSON.parse(saved)
+        setSavedAccounts(parsed)
+        savedAccountsRef.current = parsed
+      } catch (e) {
+        console.error('解析保存的账号失败:', e)
+      }
     }
   }, [])
 
   // 保存账号到 localStorage
   const saveAccount = (username: string, password: string) => {
-    const exists = savedAccounts.some(acc => acc.username === username)
+    const currentAccounts = savedAccountsRef.current
+    const exists = currentAccounts.some(acc => acc.username === username)
+    console.log('saveAccount called:', { username, currentAccounts, exists })
     if (!exists) {
-      const newAccounts = [...savedAccounts, { username, password }]
+      const newAccounts = [...currentAccounts, { username, password }]
+      savedAccountsRef.current = newAccounts
       setSavedAccounts(newAccounts)
       localStorage.setItem('saved_admin_accounts', JSON.stringify(newAccounts))
+      console.log('Account saved:', newAccounts)
     }
+  }
+
+  // 清除所有保存的账号（仅供测试用）
+  const clearAllAccounts = () => {
+    savedAccountsRef.current = []
+    setSavedAccounts([])
+    localStorage.removeItem('saved_admin_accounts')
   }
 
   // 删除保存的账号
   const deleteAccount = (index: number, e: React.MouseEvent) => {
     e.stopPropagation()
-    const newAccounts = savedAccounts.filter((_, i) => i !== index)
+    const newAccounts = savedAccountsRef.current.filter((_, i) => i !== index)
+    savedAccountsRef.current = newAccounts
     setSavedAccounts(newAccounts)
     localStorage.setItem('saved_admin_accounts', JSON.stringify(newAccounts))
   }
@@ -137,6 +156,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   </button>
                 </div>
               ))}
+              <button type="button" onClick={clearAllAccounts} style={styles.clearButton}>
+                清除所有已保存账号
+              </button>
             </div>
           )}
 
@@ -250,6 +272,16 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px',
     display: 'flex',
     alignItems: 'center'
+  },
+  clearButton: {
+    marginTop: '8px',
+    background: 'none',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    padding: '8px',
+    fontSize: '12px',
+    color: '#999',
+    cursor: 'pointer'
   },
   error: {
     display: 'flex',
