@@ -1,0 +1,316 @@
+import aiosqlite
+from typing import Optional, List
+from datetime import datetime, timedelta
+import hashlib
+
+DATABASE_PATH = "license_server.db"
+
+# Default admin credentials (username: admin, password: admin123)
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "admin123"
+
+
+def hash_password(password: str) -> str:
+    """Hash password using SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+async def init_db():
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Admin users table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+        # License keys table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS license_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                license_key TEXT NOT NULL UNIQUE,
+                license_type TEXT NOT NULL,
+                machine_code TEXT,
+                activated_at TEXT,
+                expires_at TEXT,
+                revoked INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Usage logs table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS usage_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_code TEXT NOT NULL,
+                action TEXT NOT NULL,
+                license_key TEXT,
+                ip_address TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Usage reports table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS usage_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_version TEXT NOT NULL,
+                os_name TEXT NOT NULL,
+                os_version TEXT NOT NULL,
+                public_ip TEXT,
+                country TEXT,
+                region TEXT,
+                city TEXT,
+                report_date TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Create default admin user if not exists
+        async with db.execute(
+            "SELECT id FROM admin_users WHERE username = ?",
+            (DEFAULT_ADMIN_USERNAME,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                await db.execute(
+                    "INSERT INTO admin_users (username, password_hash) VALUES (?, ?)",
+                    (DEFAULT_ADMIN_USERNAME, hash_password(DEFAULT_ADMIN_PASSWORD))
+                )
+
+        await db.commit()
+
+
+async def get_license_by_key(license_key: str) -> Optional[dict]:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            """SELECT id, license_key, license_type, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+               FROM license_keys WHERE license_key = ?""",
+            (license_key,)
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if row:
+            return {
+                "id": row[0],
+                "license_key": row[1],
+                "license_type": row[2],
+                "machine_code": row[3],
+                "activated_at": row[4],
+                "expires_at": row[5],
+                "revoked": row[6],
+                "created_at": row[7],
+                "updated_at": row[8]
+            }
+        return None
+
+
+async def activate_license(license_key: str, machine_code: str) -> dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Get the license key info
+        license = await get_license_by_key(license_key)
+        if not license:
+            return {"success": False, "error": "授权码无效"}
+
+        if license["revoked"]:
+            return {"success": False, "error": "授权码已被撤销"}
+
+        if license["machine_code"] and license["machine_code"] != machine_code:
+            return {"success": False, "error": "授权码已被其他机器使用"}
+
+        # Calculate expires_at based on license type
+        activated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        expires_at = None
+
+        if license["license_type"] == "year":
+            expires_at = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+        elif license["license_type"] == "trial":
+            expires_at = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+
+        await db.execute(
+            """UPDATE license_keys
+               SET machine_code = ?, activated_at = ?, expires_at = ?, updated_at = datetime('now')
+               WHERE license_key = ?""",
+            (machine_code, activated_at, expires_at, license_key)
+        )
+        await db.commit()
+
+        return {
+            "success": True,
+            "license_type": license["license_type"],
+            "activated_at": activated_at,
+            "expires_at": expires_at
+        }
+
+
+async def verify_license(machine_code: str, license_key: str) -> dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Verify specific license key
+        license = await get_license_by_key(license_key)
+        if not license:
+            return {"valid": False, "error": "授权码无效"}
+
+        if license["revoked"]:
+            return {"valid": False, "error": "授权码已被撤销"}
+
+        if license["machine_code"] != machine_code:
+            return {"valid": False, "error": "授权码与机器不匹配"}
+
+        if license["expires_at"]:
+            expires_dt = datetime.strptime(license["expires_at"], "%Y-%m-%d %H:%M:%S")
+            if expires_dt < datetime.now():
+                return {"valid": False, "error": "授权已过期"}
+
+        return {
+            "valid": True,
+            "license_type": license["license_type"],
+            "expires_at": license["expires_at"]
+        }
+
+
+async def create_license_key(license_key: str, license_type: str) -> dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Check if key already exists
+        existing = await get_license_by_key(license_key)
+        if existing:
+            return {"success": False, "error": "授权码已存在"}
+
+        await db.execute(
+            "INSERT INTO license_keys (license_key, license_type) VALUES (?, ?)",
+            (license_key, license_type)
+        )
+        await db.commit()
+        return {"success": True}
+
+
+async def revoke_license(license_key: str) -> dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE license_keys SET revoked = 1, updated_at = datetime('now') WHERE license_key = ?",
+            (license_key,)
+        )
+        await db.commit()
+        return {"success": True}
+
+
+async def log_usage(machine_code: str, action: str, license_key: str = None, ip_address: str = None):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "INSERT INTO usage_logs (machine_code, action, license_key, ip_address) VALUES (?, ?, ?, ?)",
+            (machine_code, action, license_key, ip_address)
+        )
+        await db.commit()
+
+
+async def save_usage_reports(reports: List[dict]) -> dict:
+    """Save batch usage reports to database"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        for report in reports:
+            await db.execute(
+                """INSERT INTO usage_reports
+                   (app_version, os_name, os_version, public_ip, country, region, city, report_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    report.get("app_version", ""),
+                    report.get("os_name", ""),
+                    report.get("os_version", ""),
+                    report.get("public_ip", ""),
+                    report.get("country", ""),
+                    report.get("region", ""),
+                    report.get("city", ""),
+                    report.get("report_date", "")
+                )
+            )
+        await db.commit()
+        return {"success": True, "count": len(reports)}
+
+
+async def get_usage_stats() -> dict:
+    """Get usage statistics"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Total reports count
+        async with db.execute("SELECT COUNT(*) FROM usage_reports") as cursor:
+            total_reports = (await cursor.fetchone())[0]
+
+        # Reports by date
+        async with db.execute(
+            """SELECT report_date, COUNT(*) as count
+               FROM usage_reports
+               GROUP BY report_date
+               ORDER BY report_date DESC
+               LIMIT 30"""
+        ) as cursor:
+            reports_by_date = await cursor.fetchall()
+
+        # Reports by country
+        async with db.execute(
+            """SELECT country, COUNT(*) as count
+               FROM usage_reports
+               GROUP BY country
+               ORDER BY count DESC
+               LIMIT 10"""
+        ) as cursor:
+            reports_by_country = await cursor.fetchall()
+
+        # Recent reports
+        async with db.execute(
+            """SELECT app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at
+               FROM usage_reports
+               ORDER BY created_at DESC
+               LIMIT 50"""
+        ) as cursor:
+            recent_reports = await cursor.fetchall()
+
+        return {
+            "total_reports": total_reports,
+            "reports_by_date": [{"date": r[0], "count": r[1]} for r in reports_by_date],
+            "reports_by_country": [{"country": r[0], "count": r[1]} for r in reports_by_country],
+            "recent_reports": [
+                {
+                    "app_version": r[0],
+                    "os_name": r[1],
+                    "os_version": r[2],
+                    "public_ip": r[3],
+                    "country": r[4],
+                    "region": r[5],
+                    "city": r[6],
+                    "report_date": r[7],
+                    "created_at": r[8]
+                }
+                for r in recent_reports
+            ]
+        }
+
+
+async def verify_admin(username: str, password: str) -> Optional[dict]:
+    """Verify admin credentials, returns user info if valid"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            "SELECT id, username FROM admin_users WHERE username = ? AND password_hash = ?",
+            (username, hash_password(password))
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return {"id": row[0], "username": row[1]}
+        return None
+
+
+async def change_admin_password(username: str, current_password: str, new_password: str) -> dict:
+    """Change admin password"""
+    # First verify current password
+    user = await verify_admin(username, current_password)
+    if not user:
+        return {"success": False, "error": "当前密码错误"}
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE admin_users SET password_hash = ?, updated_at = datetime('now') WHERE username = ?",
+            (hash_password(new_password), username)
+        )
+        await db.commit()
+        return {"success": True}
