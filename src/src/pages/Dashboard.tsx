@@ -17,7 +17,6 @@ interface Project {
 export default function Dashboard({ onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<'generate' | 'stats' | 'projects'>('generate')
   const [licenseType, setLicenseType] = useState<'year' | 'permanent' | 'custom'>('year')
-  const [project, setProject] = useState('zupu')
   const [customExpiry, setCustomExpiry] = useState('')
   const [generatedKey, setGeneratedKey] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -34,10 +33,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoadingProjects, setIsLoadingProjects] = useState(false)
   const [showProjectModal, setShowProjectModal] = useState(false)
+  const [showProjectsListModal, setShowProjectsListModal] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [projectForm, setProjectForm] = useState({ name: '', code: '', disabled: false })
   const [projectError, setProjectError] = useState('')
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [currentProject, setCurrentProject] = useState<Project | null>(null)
 
   // 加载项目列表
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         body: JSON.stringify({
           license_key: newKey,
           license_type: licenseType === 'custom' ? 'year' : licenseType,
-          project: project,
+          project: currentProject?.code || 'zupu',
           expires_at: expiresAt
         })
       })
@@ -160,6 +160,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       if (res.ok) {
         const data = await res.json()
         setProjects(data.data)
+        // Auto-select first project if none selected
+        if (!currentProject && data.data.length > 0) {
+          setCurrentProject(data.data[0])
+        }
       }
     } catch (err) {
       console.error('加载项目失败:', err)
@@ -228,8 +232,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       })
       if (res.ok) {
         loadProjects()
-        if (selectedProject?.id === project.id) {
-          setSelectedProject(null)
+        if (currentProject?.id === project.id) {
+          setCurrentProject(null)
         }
       } else {
         const data = await res.json()
@@ -238,10 +242,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     } catch (err) {
       alert('网络错误')
     }
-  }
-
-  const viewProject = (project: Project) => {
-    setSelectedProject(project)
   }
 
   return (
@@ -253,43 +253,63 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <span style={{ color: 'white', fontSize: '18px', fontWeight: 600 }}>授权管理</span>
         </div>
 
-        <nav style={styles.nav}>
-          <button
-            onClick={() => setActiveTab('generate')}
-            style={{
-              ...styles.navItem,
-              backgroundColor: activeTab === 'generate' ? 'white' : 'transparent',
-              color: activeTab === 'generate' ? '#667eea' : 'white'
+        {/* 项目选择器 */}
+        <div style={styles.projectSelector}>
+          <label style={styles.projectSelectorLabel}>当前项目</label>
+          <select
+            value={currentProject?.id || ''}
+            onChange={(e) => {
+              const selected = projects.find(p => p.id === Number(e.target.value))
+              setCurrentProject(selected || null)
             }}
+            style={styles.projectSelect}
           >
-            <Plus size={20} />
-            <span>生成序列码</span>
-          </button>
+            {projects.length === 0 && <option value="">暂无项目</option>}
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 项目内导航 */}
+        {currentProject && (
+          <nav style={styles.nav}>
+            <div style={styles.navSection}>
+              <span style={styles.navSectionTitle}>{currentProject.name}</span>
+              <button
+                onClick={() => setActiveTab('generate')}
+                style={{
+                  ...styles.navItem,
+                  backgroundColor: activeTab === 'generate' ? 'white' : 'transparent',
+                  color: activeTab === 'generate' ? '#667eea' : 'white'
+                }}
+              >
+                <Plus size={20} />
+                <span>生成序列码</span>
+              </button>
+              <button
+                onClick={() => { setActiveTab('stats'); loadStats(); }}
+                style={{
+                  ...styles.navItem,
+                  backgroundColor: activeTab === 'stats' ? 'white' : 'transparent',
+                  color: activeTab === 'stats' ? '#667eea' : 'white'
+                }}
+              >
+                <BarChart3 size={20} />
+                <span>使用统计</span>
+              </button>
+            </div>
+          </nav>
+        )}
+
+        <div style={styles.bottom}>
           <button
-            onClick={() => { setActiveTab('stats'); loadStats(); }}
-            style={{
-              ...styles.navItem,
-              backgroundColor: activeTab === 'stats' ? 'white' : 'transparent',
-              color: activeTab === 'stats' ? '#667eea' : 'white'
-            }}
-          >
-            <BarChart3 size={20} />
-            <span>使用统计</span>
-          </button>
-          <button
-            onClick={() => { setActiveTab('projects'); loadProjects(); }}
-            style={{
-              ...styles.navItem,
-              backgroundColor: activeTab === 'projects' ? 'white' : 'transparent',
-              color: activeTab === 'projects' ? '#667eea' : 'white'
-            }}
+            onClick={() => { loadProjects(); }}
+            style={styles.navItem}
           >
             <Folder size={20} />
             <span>项目管理</span>
           </button>
-        </nav>
-
-        <div style={styles.bottom}>
           <button
             onClick={() => setShowPasswordModal(true)}
             style={styles.navItem}
@@ -308,30 +328,32 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       {/* 主内容 */}
       <main style={styles.main}>
-        {activeTab === 'generate' && (
+        {!currentProject && !activeTab && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>生成序列码</h2>
+            <h2 style={styles.pageTitle}>欢迎使用授权管理系统</h2>
+            <div style={styles.card}>
+              <div style={styles.cardContent}>
+                <div style={styles.empty}>
+                  <p>暂无项目，请先在"项目管理"中创建项目</p>
+                  <button onClick={() => loadProjects()} style={styles.addButton}>
+                    <RefreshCw size={18} />
+                    <span>刷新项目列表</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentProject && activeTab === 'generate' && (
+          <div style={styles.content}>
+            <h2 style={styles.pageTitle}>生成序列码 - {currentProject.name}</h2>
 
             <div style={styles.card}>
               <div style={styles.cardHeader}>
                 <h3 style={styles.cardTitle}>授权类型</h3>
               </div>
               <div style={styles.cardContent}>
-                {/* 项目选择 */}
-                <div style={styles.field}>
-                  <label style={styles.label}>项目</label>
-                  <select
-                    value={project}
-                    onChange={(e) => setProject(e.target.value)}
-                    style={styles.select}
-                  >
-                    {projects.length === 0 && <option value="zupu">祖谱 (默认)</option>}
-                    {projects.map(p => (
-                      <option key={p.id} value={p.code}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-
                 <div style={styles.typeSelector}>
                   <button
                     onClick={() => setLicenseType('year')}
@@ -405,7 +427,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       {licenseType === 'year' ? '年度授权，自发放日起1年内有效' :
                        licenseType === 'permanent' ? '永久授权，无有效期限制' :
                        `自定义到期时间: ${customExpiry}`}
-                      {project && <span> | 项目: {project}</span>}
                     </div>
                   </div>
                 )}
@@ -414,9 +435,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           </div>
         )}
 
-        {activeTab === 'stats' && (
+        {activeTab === 'stats' && currentProject && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>使用统计</h2>
+            <h2 style={styles.pageTitle}>使用统计 - {currentProject.name}</h2>
 
             {error && <div style={styles.error}>{error}</div>}
 
@@ -510,7 +531,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           </div>
         )}
 
-        {activeTab === 'projects' && (
+        {activeTab === 'projects' && !currentProject && (
           <div style={styles.content}>
             <div style={styles.contentHeader}>
               <h2 style={styles.pageTitle}>项目管理</h2>
@@ -580,55 +601,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   ) : (
                     <div style={styles.empty}>暂无项目，点击"新增项目"添加</div>
                   )}
-                </div>
-              </div>
-            )}
-
-            {/* 项目详情 */}
-            {selectedProject && (
-              <div style={styles.card}>
-                <div style={styles.cardHeader}>
-                  <h3 style={styles.cardTitle}>项目详情</h3>
-                </div>
-                <div style={styles.cardContent}>
-                  <div style={styles.detailGrid}>
-                    <div style={styles.detailItem}>
-                      <label style={styles.detailLabel}>名称</label>
-                      <div style={styles.detailValue}>{selectedProject.name}</div>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <label style={styles.detailLabel}>编码</label>
-                      <div style={styles.detailValue}>
-                        <code style={styles.code}>{selectedProject.code}</code>
-                      </div>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <label style={styles.detailLabel}>状态</label>
-                      <div style={styles.detailValue}>
-                        <span style={{
-                          ...styles.badge,
-                          backgroundColor: selectedProject.disabled ? '#fee' : '#efe',
-                          color: selectedProject.disabled ? '#e53e3e' : '#38a169'
-                        }}>
-                          {selectedProject.disabled ? '已禁用' : '启用'}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <label style={styles.detailLabel}>创建时间</label>
-                      <div style={styles.detailValue}>{selectedProject.created_at}</div>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <label style={styles.detailLabel}>更新时间</label>
-                      <div style={styles.detailValue}>{selectedProject.updated_at}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedProject(null)}
-                    style={styles.closeDetailButton}
-                  >
-                    关闭详情
-                  </button>
                 </div>
               </div>
             )}
@@ -740,11 +712,43 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '40px',
     padding: '10px'
   },
+  projectSelector: {
+    marginBottom: '20px',
+    padding: '12px',
+    background: 'rgba(255,255,255,0.1)',
+    borderRadius: '10px'
+  },
+  projectSelectorLabel: {
+    display: 'block',
+    fontSize: '11px',
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: '8px',
+    textTransform: 'uppercase'
+  },
+  projectSelect: {
+    width: '100%',
+    padding: '10px 12px',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '14px',
+    background: 'white',
+    cursor: 'pointer'
+  },
   nav: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
     gap: '8px'
+  },
+  navSection: {
+    marginBottom: '8px'
+  },
+  navSectionTitle: {
+    display: 'block',
+    fontSize: '11px',
+    color: 'rgba(255,255,255,0.5)',
+    padding: '8px 16px',
+    textTransform: 'uppercase'
   },
   navItem: {
     display: 'flex',
