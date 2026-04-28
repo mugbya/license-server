@@ -160,9 +160,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       if (res.ok) {
         const data = await res.json()
         setProjects(data.data)
-        // Auto-select first project if none selected
-        if (!currentProject && data.data.length > 0) {
-          setCurrentProject(data.data[0])
+        // Auto-select first enabled project if none selected
+        if (!currentProject && data.data.filter((p: Project) => !p.disabled).length > 0) {
+          const firstEnabled = data.data.find((p: Project) => !p.disabled)
+          setCurrentProject(firstEnabled)
         }
       }
     } catch (err) {
@@ -264,8 +265,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             }}
             style={styles.projectSelect}
           >
-            {projects.length === 0 && <option value="">暂无项目</option>}
-            {projects.map(p => (
+            {projects.filter(p => !p.disabled).length === 0 && <option value="">暂无可用项目</option>}
+            {projects.filter(p => !p.disabled).map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
