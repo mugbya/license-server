@@ -149,14 +149,15 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
         if license["machine_code"] and license["machine_code"] != machine_code:
             return {"success": False, "error": "授权码已被其他机器使用"}
 
-        # Calculate expires_at based on license type
+        # Calculate expires_at based on license type (only for types that need calculation)
         activated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        expires_at = None
+        expires_at = license["expires_at"]  # Preserve existing expires_at (e.g., for custom type)
 
         if license["license_type"] == "year":
             expires_at = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
         elif license["license_type"] == "trial":
             expires_at = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+        # permanent and custom types keep their original expires_at
 
         await db.execute(
             """UPDATE license_keys
