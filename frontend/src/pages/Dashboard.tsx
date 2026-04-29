@@ -40,6 +40,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [licenseKeys, setLicenseKeys] = useState<any[]>([])
   const [keysStats, setKeysStats] = useState<any>(null)
   const [isLoadingKeys, setIsLoadingKeys] = useState(false)
+  const [licenseDetail, setLicenseDetail] = useState<any>(null)
+  const [showLicenseDetailModal, setShowLicenseDetailModal] = useState(false)
 
   // Projects management
   const [projects, setProjects] = useState<Project[]>([])
@@ -235,6 +237,29 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
+  // Detail row component for license detail modal
+  const DetailRow = ({ label, value, mono = false }: { label: string, value: string, mono?: boolean }) => (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '12px 0',
+      borderBottom: '1px solid #f0f0f0',
+      gap: '20px',
+      minHeight: '44px'
+    }}>
+      <span style={{ fontSize: '14px', color: '#888', flexShrink: 0 }}>{label}</span>
+      <span style={{
+        fontSize: '14px',
+        color: '#333',
+        fontFamily: mono || value.includes('GLY') || value.includes('GLP') || value.includes('GLT') || value.includes('GLC') ? 'monospace' : 'inherit',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }}>{value}</span>
+    </div>
+  )
+
   // Project management functions
   const loadProjects = async () => {
     setIsLoadingProjects(true)
@@ -362,6 +387,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     } catch (err) {
       console.error('加载统计失败:', err)
     }
+  }
+
+  const openLicenseDetail = (license: any) => {
+    setLicenseDetail(license)
+    setShowLicenseDetailModal(true)
   }
 
   const revokeLicenseKey = async (licenseKey: string) => {
@@ -921,7 +951,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       <thead>
                         <tr>
                           <th style={styles.th}>序列码</th>
-                          <th style={styles.th}>授权码</th>
                           <th style={styles.th}>类型</th>
                           <th style={styles.th}>状态</th>
                           <th style={styles.th}>绑定机器</th>
@@ -935,9 +964,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           <tr key={k.id} style={styles.tr}>
                             <td style={styles.td}>
                               <code style={styles.code}>{k.license_key}</code>
-                            </td>
-                            <td style={styles.td}>
-                              <code style={{ ...styles.code, fontSize: '12px', wordBreak: 'break-all' }}>{k.auth_code || '-'}</code>
                             </td>
                             <td style={styles.td}>
                               {k.license_type === 'year' ? '年度' : k.license_type === 'permanent' ? '永久' : k.license_type === 'custom' ? '自定义' : k.license_type === 'trial' ? '试用' : k.license_type}
@@ -965,11 +991,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                   <span style={{ color: '#38a169' }}>有效</span>
                                 )
                               ) : (
-                                <span style={{ color: '#666' }}>-</span>
+                                <span style={{ color: '#667eea' }}>永久</span>
                               )}
                             </td>
                             <td style={styles.td}>
                               <div style={styles.actions}>
+                                <button
+                                  onClick={() => openLicenseDetail(k)}
+                                  style={{ ...styles.actionButton, color: '#667eea' }}
+                                  title="查看详情"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
                                 {!k.revoked && (
                                   <button
                                     onClick={() => revokeLicenseKey(k.license_key)}
@@ -1123,6 +1156,129 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             <div style={styles.modalFooter}>
               <button onClick={closeProjectModal} style={styles.cancelButton}>取消</button>
               <button onClick={saveProject} style={styles.confirmButton}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 序列码详情弹窗 */}
+      {showLicenseDetailModal && licenseDetail && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modal, width: '700px', maxWidth: '90vw' }}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>序列码详情</h3>
+              <button onClick={() => setShowLicenseDetailModal(false)} style={styles.closeButton}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              {/* 序列码卡片 */}
+              <div style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '12px',
+                padding: '24px',
+                color: 'white',
+                marginBottom: '20px'
+              }}>
+                <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>序列码</div>
+                <div style={{ fontSize: '20px', fontFamily: 'monospace', fontWeight: 600, letterSpacing: '2px' }}>
+                  {licenseDetail.license_key}
+                </div>
+                <div style={{
+                  display: 'inline-block',
+                  marginTop: '12px',
+                  padding: '6px 16px',
+                  background: 'rgba(255,255,255,0.2)',
+                  borderRadius: '20px',
+                  fontSize: '14px'
+                }}>
+                  {licenseDetail.license_type === 'year' ? '年度授权' :
+                   licenseDetail.license_type === 'permanent' ? '永久授权' :
+                   licenseDetail.license_type === 'custom' ? '自定义授权' :
+                   licenseDetail.license_type === 'trial' ? '试用授权' : licenseDetail.license_type}
+                </div>
+              </div>
+
+              {/* 状态卡片 */}
+              <div style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '20px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                marginBottom: '16px',
+                display: 'flex',
+                justifyContent: 'space-around'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: licenseDetail.machine_code ? '#38a169' : '#3182ce' }}>
+                    {licenseDetail.revoked ? '已撤销' : licenseDetail.machine_code ? '已激活' : '未激活'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>激活状态</div>
+                </div>
+                <div style={{ width: '1px', background: '#eee' }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: licenseDetail.expires_at ? (new Date(licenseDetail.expires_at) < new Date() ? '#e53e3e' : '#38a169') : '#667eea' }}>
+                    {licenseDetail.expires_at ? (new Date(licenseDetail.expires_at) < new Date() ? '已过期' : '有效') : '永久'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>使用状态</div>
+                </div>
+              </div>
+
+              {/* 信息列表 */}
+              <div style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '20px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+              }}>
+                <DetailRow label="绑定机器" value={licenseDetail.machine_code || '-'} mono />
+                <DetailRow label="激活时间" value={licenseDetail.activated_at || '-'} />
+                <DetailRow label="到期时间" value={licenseDetail.expires_at || '-'} />
+                <DetailRow label="创建时间" value={licenseDetail.created_at || '-'} />
+              </div>
+
+              {/* 授权码 */}
+              {licenseDetail.auth_code && (
+                <div style={{
+                  marginTop: '16px',
+                  background: 'white',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                }}>
+                  <div style={{ fontSize: '14px', color: '#666', marginBottom: '12px', fontWeight: 500 }}>授权码（JWT格式）</div>
+                  <div style={{
+                    padding: '16px',
+                    background: '#f8f9fa',
+                    borderRadius: '8px',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    wordBreak: 'break-all',
+                    lineHeight: '1.6',
+                    color: '#333'
+                  }}>
+                    {licenseDetail.auth_code}
+                  </div>
+                </div>
+              )}
+
+              {/* 关闭按钮 */}
+              <button
+                onClick={() => setShowLicenseDetailModal(false)}
+                style={{
+                  width: '100%',
+                  marginTop: '20px',
+                  padding: '14px',
+                  background: '#f5f5f5',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '15px',
+                  cursor: 'pointer',
+                  color: '#666'
+                }}
+              >
+                关闭
+              </button>
             </div>
           </div>
         </div>
