@@ -335,7 +335,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             {/* 序列码管理 */}
             <div style={styles.menuGroup}>
               <button
-                onClick={() => setActiveMenu('license')}
+                onClick={() => {
+                  setActiveMenu('license')
+                  setActiveTab('generate')
+                }}
                 style={{
                   ...styles.menuButton,
                   backgroundColor: activeMenu === 'license' ? 'rgba(255,255,255,0.15)' : 'transparent',
@@ -350,7 +353,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               {activeMenu === 'license' && (
                 <div style={styles.subMenu}>
                   <button
-                    onClick={() => setActiveTab('generate')}
+                    onClick={() => {
+                      setActiveMenu('license')
+                      setActiveTab('generate')
+                    }}
                     style={{
                       ...styles.subMenuItem,
                       backgroundColor: activeTab === 'generate' ? 'white' : 'transparent',
@@ -360,7 +366,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     生成序列码
                   </button>
                   <button
-                    onClick={() => { setActiveTab('key_list'); loadLicenseKeys(); }}
+                    onClick={() => {
+                      setActiveMenu('license')
+                      setActiveTab('key_list')
+                      loadLicenseKeys()
+                    }}
                     style={{
                       ...styles.subMenuItem,
                       backgroundColor: activeTab === 'key_list' ? 'white' : 'transparent',
@@ -376,7 +386,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             {/* 数据统计 */}
             <div style={styles.menuGroup}>
               <button
-                onClick={() => setActiveMenu('stats')}
+                onClick={() => {
+                  setActiveMenu('stats')
+                  setActiveTab('usage_stats')
+                }}
                 style={{
                   ...styles.menuButton,
                   backgroundColor: activeMenu === 'stats' ? 'rgba(255,255,255,0.15)' : 'transparent',
@@ -391,7 +404,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               {activeMenu === 'stats' && (
                 <div style={styles.subMenu}>
                   <button
-                    onClick={() => { setActiveTab('usage_stats'); loadStats(); }}
+                    onClick={() => {
+                      setActiveMenu('stats')
+                      setActiveTab('usage_stats')
+                      loadStats()
+                    }}
                     style={{
                       ...styles.subMenuItem,
                       backgroundColor: activeTab === 'usage_stats' ? 'white' : 'transparent',
@@ -401,7 +418,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     使用统计
                   </button>
                   <button
-                    onClick={() => { setActiveTab('keys_stats'); loadKeysStats(); }}
+                    onClick={() => {
+                      setActiveMenu('stats')
+                      setActiveTab('keys_stats')
+                      loadKeysStats()
+                    }}
                     style={{
                       ...styles.subMenuItem,
                       backgroundColor: activeTab === 'keys_stats' ? 'white' : 'transparent',
