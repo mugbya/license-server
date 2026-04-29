@@ -6,9 +6,10 @@ from routers.admin import router as admin_router
 from routers.projects import router as projects_router
 import uvicorn
 import logging
-from logging.handlers import TimedRotatingFileHandler
 import os
 import time
+import uuid
+from logging.handlers import TimedRotatingFileHandler
 
 # Import config
 from config import LOG_DIR, LOG_RETENTION_DAYS, LOG_LEVEL, HOST, PORT
@@ -68,11 +69,13 @@ app = FastAPI(title="License Server", version="1.0.0")
 # Logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    # Generate unique request ID for correlation
+    request_id = str(uuid.uuid4())[:8]
     body_bytes = None
     if request.method in ["POST", "PUT", "PATCH"]:
         body_bytes = await request.body()
 
-    log_msg = f"{request.method} {request.url.path}"
+    log_msg = f"[{request_id}] {request.method} {request.url.path}"
     if request.query_params:
         log_msg += f" | Query: {dict(request.query_params)}"
     if body_bytes:
@@ -86,7 +89,7 @@ async def log_requests(request: Request, call_next):
 
     response = await call_next(request)
 
-    logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
+    logger.info(f"[{request_id}] Response: {request.method} {request.url.path} | Status: {response.status_code}")
     return response
 
 # CORS middleware
