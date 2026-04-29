@@ -84,8 +84,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         const data = await res.json()
         // Use the encoded key returned from backend
         setGeneratedKey(data.encoded_key || data.license_key)
-        // Refresh the license keys list
-        loadLicenseKeys()
       } else {
         const data = await res.json()
         setError(data.detail || '生成失败')
