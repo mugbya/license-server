@@ -104,7 +104,7 @@ def decode_license(encoded: str) -> Optional[dict]:
     if not encoded:
         return None
 
-    if not encoded.startswith("GLY-"):
+    if not encoded.startswith(("GLY-", "GLT-", "GLC-", "GLP-")):
         # Not an encrypted license, return None to indicate invalid format
         return None
 
@@ -292,7 +292,7 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
         original_key = license_key
         decoded_info = None
 
-        if license_key.startswith("GLY-"):
+        if license_key.startswith(("GLY-", "GLT-", "GLC-", "GLP-")):
             decoded_info = decode_license(license_key)
             if decoded_info:
                 original_key = decoded_info["key"]
@@ -356,7 +356,7 @@ async def verify_license(machine_code: str, license_key: str) -> dict:
         original_key = license_key
         encoded_exp = None  # Expiry from encoded license for validation
 
-        if license_key.startswith("GLY-"):
+        if license_key.startswith(("GLY-", "GLT-", "GLC-", "GLP-")):
             decoded = decode_license(license_key)
             if decoded:
                 original_key = decoded["key"]

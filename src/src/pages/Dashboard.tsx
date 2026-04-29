@@ -773,7 +773,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               <code style={styles.code}>{k.license_key}</code>
                             </td>
                             <td style={styles.td}>
-                              {k.license_type === 'year' ? '年度' : k.license_type === 'permanent' ? '永久' : k.license_type === 'custom' ? '自定义' : k.license_type}
+                              {k.license_type === 'year' ? '年度' : k.license_type === 'permanent' ? '永久' : k.license_type === 'custom' ? '自定义' : k.license_type === 'trial' ? '试用' : k.license_type}
                             </td>
                             <td style={styles.td}>
                               <span style={{

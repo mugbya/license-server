@@ -114,20 +114,24 @@ async def get_trial(request: Request, machine_code: str):
             }
         }
 
-    # Create new trial license for this machine
+    # Create new trial license for this machine and activate immediately
     trial_key = db.generate_license_key("trial")
     result = await db.create_license_key(trial_key, "trial", "zupu")
 
     if result.get("success"):
-        await db.log_usage(machine_code, "trial_create", trial_key, client_ip)
-        return {
-            "success": True,
-            "data": {
-                "license_key": result.get("encoded_key", trial_key),
-                "license_type": "trial",
-                "expires_at": result.get("expires_at"),
-                "is_existing": False
+        # Activate the trial license immediately with this machine code
+        activate_result = await db.activate_license(trial_key, machine_code)
+        if activate_result.get("success"):
+            await db.log_usage(machine_code, "trial_create", trial_key, client_ip)
+            return {
+                "success": True,
+                "data": {
+                    "license_key": result.get("encoded_key", trial_key),
+                    "license_type": "trial",
+                    "activated_at": activate_result.get("activated_at"),
+                    "expires_at": activate_result.get("expires_at"),
+                    "is_existing": False
+                }
             }
-        }
 
     raise HTTPException(status_code=500, detail=result.get("error", "Failed to create trial license"))
