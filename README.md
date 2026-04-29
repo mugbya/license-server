@@ -139,21 +139,23 @@ GLY-eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjE3MDk4MzIwMDAsImp0aSI6IjEyMzQ1Njc4LTEyMzQtMTI
 
 ```
 license-server/
-├── main.py              # FastAPI 入口
-├── config.py           # 配置文件
-├── database.py         # 数据库操作
-├── models.py           # 数据模型
-├── private.py          # ⚠️ 敏感配置 (需手动创建，不提交到 git)
-├── generate_keys.py    # RSA 密钥生成脚本
-├── requirements.txt    # Python 依赖
-├── routers/           # API 路由
-│   ├── admin.py       # 管理员接口
-│   ├── license.py     # 授权接口
-│   └── projects.py    # 项目接口
-├── src/               # 前端源码
-│   ├── pages/         # React 页面
+├── backend/              # 后端目录
+│   ├── main.py           # FastAPI 入口
+│   ├── config.py        # 配置文件
+│   ├── database.py      # 数据库操作
+│   ├── models.py        # 数据模型
+│   ├── private.py        # ⚠️ 敏感配置 (需手动创建，不提交到 git)
+│   ├── requirements.txt  # Python 依赖
+│   └── routers/          # API 路由
+│       ├── admin.py      # 管理员接口
+│       ├── license.py    # 授权接口
+│       └── projects.py   # 项目接口
+├── frontend/             # 前端目录
+│   ├── src/              # React 源码
+│   │   └── pages/        # React 页面
 │   └── ...
-└── logs/              # 日志目录
+├── generate_keys.py      # RSA 密钥生成脚本
+└── logs/                # 日志目录
 ```
 
 ## 配置说明

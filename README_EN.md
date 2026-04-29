@@ -139,21 +139,23 @@ Contains expiration time, JTI (unique ID), and activation time.
 
 ```
 license-server/
-├── main.py              # FastAPI entry point
-├── config.py           # Configuration
-├── database.py         # Database operations
-├── models.py           # Data models
-├── private.py          # ⚠️ Sensitive config (create manually, do NOT commit to git)
-├── generate_keys.py    # RSA key generation script
-├── requirements.txt    # Python dependencies
-├── routers/           # API routes
-│   ├── admin.py       # Admin endpoints
-│   ├── license.py     # License endpoints
-│   └── projects.py    # Project endpoints
-├── src/               # Frontend source
-│   ├── pages/         # React pages
+├── backend/              # Backend directory
+│   ├── main.py           # FastAPI entry point
+│   ├── config.py        # Configuration
+│   ├── database.py      # Database operations
+│   ├── models.py        # Data models
+│   ├── private.py       # ⚠️ Sensitive config (create manually, do NOT commit to git)
+│   ├── requirements.txt  # Python dependencies
+│   └── routers/          # API routes
+│       ├── admin.py      # Admin endpoints
+│       ├── license.py    # License endpoints
+│       └── projects.py   # Project endpoints
+├── frontend/              # Frontend directory
+│   ├── src/              # React source
+│   │   └── pages/        # React pages
 │   └── ...
-└── logs/              # Log directory
+├── generate_keys.py       # RSA key generation script
+└── logs/                 # Log directory
 ```
 
 ## Configuration
