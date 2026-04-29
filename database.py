@@ -34,8 +34,14 @@ def hash_password(password: str) -> str:
 
 
 def generate_license_key(license_type: str) -> str:
-    """Generate a random license key in format GLY-XXXX-XXXX-XXXX-XXXX or GLP-XXXX-XXXX-XXXX-XXXX"""
-    prefix = "GLP" if license_type == "permanent" else "GLY"
+    """Generate a random license key with type-specific prefix"""
+    prefix_map = {
+        'year': 'GLY',      # 年度授权
+        'trial': 'GLT',     # 试用授权
+        'custom': 'GLC',    # 自定义授权
+        'permanent': 'GLP'  # 永久授权
+    }
+    prefix = prefix_map.get(license_type, 'GLY')
     chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     part = lambda: ''.join(secrets.choice(chars) for _ in range(4))
     return f"{prefix}-{part()}-{part()}-{part()}-{part()}"
