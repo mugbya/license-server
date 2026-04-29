@@ -7,7 +7,7 @@ import hmac
 import secrets
 
 # Import from config
-from config import DATABASE_PATH, LICENSE_SECRET_KEY
+from config import DATABASE_PATH, LICENSE_SECRET_KEY, YEAR_LICENSE_DAYS, TRIAL_LICENSE_UNIT, TRIAL_LICENSE_VALUE
 
 # Validate that LICENSE_SECRET_KEY is set
 if LICENSE_SECRET_KEY is None:
@@ -45,6 +45,19 @@ def generate_license_key(license_type: str) -> str:
     chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     part = lambda: ''.join(secrets.choice(chars) for _ in range(4))
     return f"{prefix}-{part()}-{part()}-{part()}-{part()}"
+
+
+def get_trial_minutes() -> int:
+    """Convert trial license unit and value to total minutes"""
+    unit = TRIAL_LICENSE_UNIT.lower()
+    value = TRIAL_LICENSE_VALUE
+    if unit == "day":
+        return value * 24 * 60
+    elif unit == "hour":
+        return value * 60
+    elif unit == "minute":
+        return value
+    return value  # default to value as minutes
 
 
 def encode_license(license_key: str, license_type: str, expires_at: str = None) -> str:
@@ -248,6 +261,31 @@ async def get_license_by_key(license_key: str) -> Optional[dict]:
         return None
 
 
+async def get_trial_by_machine_code(machine_code: str) -> Optional[dict]:
+    """Get trial license for a specific machine code"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            """SELECT id, license_key, license_type, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+               FROM license_keys WHERE machine_code = ? AND license_type = 'trial'""",
+            (machine_code,)
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if row:
+            return {
+                "id": row[0],
+                "license_key": row[1],
+                "license_type": row[2],
+                "machine_code": row[3],
+                "activated_at": row[4],
+                "expires_at": row[5],
+                "revoked": row[6],
+                "created_at": row[7],
+                "updated_at": row[8]
+            }
+        return None
+
+
 async def activate_license(license_key: str, machine_code: str) -> dict:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         # Try to decode license if it's in the encrypted format (GLY-...)
@@ -291,9 +329,9 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
         expires_at = license["expires_at"]  # Preserve existing expires_at (e.g., for custom type)
 
         if license["license_type"] == "year":
-            expires_at = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+            expires_at = (datetime.now() + timedelta(days=YEAR_LICENSE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
         elif license["license_type"] == "trial":
-            expires_at = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+            expires_at = (datetime.now() + timedelta(minutes=get_trial_minutes())).strftime("%Y-%m-%d %H:%M:%S")
         # permanent and custom types keep their original expires_at
 
         await db.execute(
@@ -375,9 +413,9 @@ async def create_license_key(license_key: str, license_type: str, project: str =
         final_expires_at = expires_at
         if not final_expires_at:
             if license_type == "year":
-                final_expires_at = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+                final_expires_at = (datetime.now() + timedelta(days=YEAR_LICENSE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
             elif license_type == "trial":
-                final_expires_at = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+                final_expires_at = (datetime.now() + timedelta(minutes=get_trial_minutes())).strftime("%Y-%m-%d %H:%M:%S")
             elif license_type == "permanent":
                 final_expires_at = None  # 永久授权没有到期时间
 

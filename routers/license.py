@@ -92,3 +92,42 @@ async def get_keys_stats(project: str = None):
     """Get license key statistics (admin only)"""
     stats = await db.get_license_key_stats(project)
     return {"success": True, "data": stats}
+
+
+@router.post("/trial")
+async def get_trial(request: Request, machine_code: str):
+    """Get or create trial license for a machine code (no auth required)"""
+    client_ip = request.client.host if request.client else None
+
+    # Check if machine already has a trial license
+    existing_trial = await db.get_trial_by_machine_code(machine_code)
+    if existing_trial:
+        # Return existing trial license
+        await db.log_usage(machine_code, "trial_reuse", existing_trial["license_key"], client_ip)
+        return {
+            "success": True,
+            "data": {
+                "license_key": existing_trial["license_key"],
+                "license_type": existing_trial["license_type"],
+                "expires_at": existing_trial["expires_at"],
+                "is_existing": True
+            }
+        }
+
+    # Create new trial license for this machine
+    trial_key = db.generate_license_key("trial")
+    result = await db.create_license_key(trial_key, "trial", "zupu")
+
+    if result.get("success"):
+        await db.log_usage(machine_code, "trial_create", trial_key, client_ip)
+        return {
+            "success": True,
+            "data": {
+                "license_key": result.get("encoded_key", trial_key),
+                "license_type": "trial",
+                "expires_at": result.get("expires_at"),
+                "is_existing": False
+            }
+        }
+
+    raise HTTPException(status_code=500, detail=result.get("error", "Failed to create trial license"))

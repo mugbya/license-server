@@ -15,7 +15,8 @@ LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR
 # License defaults
 DEFAULT_LICENSE_TYPE = "year"
 YEAR_LICENSE_DAYS = 365
-TRIAL_LICENSE_DAYS = 30
+TRIAL_LICENSE_UNIT = "minute"   # 时间单位: day/hour/minute
+TRIAL_LICENSE_VALUE = 3       # 试用期数值
 
 # License key encryption (32 bytes for AES-256)
 # Import from private.py - DO NOT commit private.py to git
