@@ -63,15 +63,29 @@ python generate_keys.py
 
 将输出的私钥粘贴到 `private.py`，公钥嵌入到客户端代码中。
 
-### 4. 启动服务
+### 4. 启动后端服务
 
 ```bash
+cd backend
+pip install -r requirements.txt
 python main.py
 ```
 
 服务启动后访问 `http://localhost:8080`
 
-### 5. 登录管理后台
+### 5. 启动前端服务（开发模式）
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+前端开发服务器启动后访问 `http://localhost:9527`
+
+> 生产环境可使用 `npm run build` 构建后部署
+
+### 6. 登录管理后台
 
 <!-- 截图预留位置 -->
 <!-- ![登录界面] -->

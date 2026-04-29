@@ -63,15 +63,29 @@ python generate_keys.py
 
 Paste the private key into `private.py`, embed the public key in your client code.
 
-### 4. Start the Server
+### 4. Start Backend Server
 
 ```bash
+cd backend
+pip install -r requirements.txt
 python main.py
 ```
 
 Access the service at `http://localhost:8080`
 
-### 5. Login to Admin Panel
+### 5. Start Frontend Server (Development)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend dev server starts at `http://localhost:9527`
+
+> For production, use `npm run build` to build and deploy
+
+### 6. Login to Admin Panel
 
 <!-- Screenshot placeholder -->
 <!-- ![Login Interface] -->
