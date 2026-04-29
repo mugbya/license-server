@@ -19,6 +19,10 @@ os.makedirs(LOG_DIR, exist_ok=True)
 # Configure logger
 logger = logging.getLogger("license_server")
 logger.setLevel(getattr(logging, LOG_LEVEL.upper(), logging.INFO))
+logger.propagate = False
+
+# Remove any existing handlers
+logger.handlers.clear()
 
 # Console handler
 console_handler = logging.StreamHandler()
@@ -120,5 +124,7 @@ if __name__ == "__main__":
         "main:app",
         host=HOST,
         port=PORT,
-        reload=True
+        reload=False,
+        log_level="warning",
+        access_log=False
     )
