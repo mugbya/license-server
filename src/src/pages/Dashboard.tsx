@@ -1074,7 +1074,6 @@ const styles: Record<string, React.CSSProperties> = {
     overflowY: 'auto'
   },
   content: {
-    maxWidth: '1200px',
     width: '100%'
   },
   pageTitle: {
