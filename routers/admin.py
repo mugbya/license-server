@@ -3,12 +3,10 @@ from pydantic import BaseModel
 import database as db
 import jwt
 from datetime import datetime, timedelta
+from private import JWT_SECRET, JWT_ALGORITHM
 
 router = APIRouter()
 
-# JWT secret - in production, use environment variable
-JWT_SECRET = "license-server-secret-key-2024"
-JWT_ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 
 

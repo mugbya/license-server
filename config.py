@@ -18,9 +18,11 @@ YEAR_LICENSE_DAYS = 365
 TRIAL_LICENSE_UNIT = "minute"   # 时间单位: day/hour/minute
 TRIAL_LICENSE_VALUE = 3       # 试用期数值
 
-# License key encryption (32 bytes for AES-256)
+# RSA Private Key for license signing (2048-bit)
 # Import from private.py - DO NOT commit private.py to git
 try:
-    from private import LICENSE_SECRET_KEY
+    from private import LICENSE_PRIVATE_KEY, DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD
 except ImportError:
-    LICENSE_SECRET_KEY = None  # Must be set in private.py
+    LICENSE_PRIVATE_KEY = None  # Must be set in private.py
+    DEFAULT_ADMIN_USERNAME = "admin"
+    DEFAULT_ADMIN_PASSWORD = "admin123"

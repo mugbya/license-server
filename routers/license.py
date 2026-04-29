@@ -5,27 +5,44 @@ from models import (
     CreateLicenseKeyRequest,
     BatchReportRequest
 )
+from pydantic import BaseModel
 import database as db
 
 router = APIRouter()
 
+class DecodeLicenseRequest(BaseModel):
+    license_code: str
+
 
 @router.post("/activate")
 async def activate(request: Request, req: ActivateLicenseRequest, machine_code: str):
-    """Activate a license key"""
+    """Activate a license key using the short license code.
+
+    Customer provides the short license code (GLY-XXXX-XXXX-XXXX-XXXX) received via email.
+    Server returns the auth_code which is RSA encrypted for client local verification.
+    """
     client_ip = request.client.host if request.client else None
 
     result = await db.activate_license(req.license_key, machine_code)
     if result.get("success"):
         await db.log_usage(machine_code, "activate", req.license_key, client_ip)
-        return {"success": True, "data": result}
+        return {
+            "success": True,
+            "data": {
+                "license_key": result.get("license_key"),  # Short format for display
+                "auth_code": result.get("auth_code"),  # RSA encrypted for client verification
+                "license_type": result.get("license_type"),
+                "activated_at": result.get("activated_at"),
+                "expires_at": result.get("expires_at")
+            }
+        }
     await db.log_usage(machine_code, "reject", req.license_key, client_ip)
     raise HTTPException(status_code=400, detail=result.get("error", "Activation failed"))
 
 
 @router.post("/verify")
 async def verify(request: Request, req: VerifyLicenseRequest, machine_code: str):
-    """Verify license status"""
+    """Verify license status and get auth code for client"""
     client_ip = request.client.host if request.client else None
 
     result = await db.verify_license(machine_code, req.license_key)
@@ -39,7 +56,6 @@ async def verify(request: Request, req: VerifyLicenseRequest, machine_code: str)
 @router.post("/report")
 async def report_usage(req: BatchReportRequest):
     """Receive batch usage reports from client"""
-    # Convert Pydantic models to dicts for database
     reports = [r.model_dump() for r in req.reports]
     result = await db.save_usage_reports(reports)
     return {"success": True, "count": result.get("count", 0)}
@@ -54,18 +70,18 @@ async def get_stats(project: str = None):
 
 @router.post("/create_key")
 async def create_key(req: CreateLicenseKeyRequest):
-    """Create a new license key (admin only - should be protected in production)"""
-    # Generate key on backend if not provided
-    # license_key = req.license_key
-    # if not license_key:
-    license_key = db.generate_license_key(req.license_type)
+    """Create a new license key (admin only).
 
-    result = await db.create_license_key(license_key, req.license_type, req.project, req.expires_at)
+    Generates a short license key (GLY-XXXX-XXXX-XXXX-XXXX) and stores it in database.
+    Also generates the auth_code for display.
+    The customer receives this short code via email.
+    """
+    result = await db.create_license_key(req.license_type, req.project, req.expires_at)
     if result.get("success"):
         return {
             "success": True,
-            "license_key": license_key,  # 返回原始key
-            "encoded_key": result.get("encoded_key"),  # 返回加密后的key
+            "license_key": result.get("license_key"),  # Short format for email
+            "auth_code": result.get("auth_code"),  # Auth code for display
             "expires_at": result.get("expires_at")
         }
     raise HTTPException(status_code=400, detail=result.get("error", "Failed to create key"))
@@ -73,7 +89,7 @@ async def create_key(req: CreateLicenseKeyRequest):
 
 @router.post("/revoke")
 async def revoke(license_key: str):
-    """Revoke a license key"""
+    """Revoke a license key by short license code"""
     result = await db.revoke_license(license_key)
     if result.get("success"):
         return {"success": True}
@@ -94,44 +110,78 @@ async def get_keys_stats(project: str = None):
     return {"success": True, "data": stats}
 
 
+@router.post("/decode")
+async def decode_license(req: DecodeLicenseRequest):
+    """Decode auth code to get exp/jti/start_at (admin only).
+
+    This decodes the RSA encrypted auth code to view its contents.
+    """
+    result = db.decode_auth_code(req.license_code)
+    if result:
+        # Handle permanent license (exp = 0)
+        if result["exp"] == 0:
+            return {"success": True, "data": {"exp": 0, "is_permanent": True}}
+        return {"success": True, "data": {"exp": result["exp"], "start_at": result["start_at"], "is_permanent": False}}
+    return {"success": False, "error": "无效的授权码"}
+
+
 @router.post("/trial")
 async def get_trial(request: Request, machine_code: str):
-    """Get or create trial license for a machine code (no auth required)"""
+    """Get or create trial license for a machine code (no auth required).
+
+    Client calls this on first startup to get a trial license.
+    Server generates short license key, auto-activates with machine code,
+    and returns auth_code for client local verification.
+    """
     client_ip = request.client.host if request.client else None
 
     # Check if machine already has a trial license
     existing_trial = await db.get_trial_by_machine_code(machine_code)
     if existing_trial:
-        # Return existing trial license
+        # Generate auth code for existing trial
         await db.log_usage(machine_code, "trial_reuse", existing_trial["license_key"], client_ip)
+        auth_code = db.encode_auth_code(
+            existing_trial["license_key"],
+            existing_trial["license_type"],
+            existing_trial["expires_at"],
+            existing_trial["activated_at"]
+        )
         return {
             "success": True,
             "data": {
-                "license_key": existing_trial["license_key"],
+                "license_key": existing_trial["license_key"],  # Short format for display
+                "auth_code": auth_code,  # RSA encrypted for client verification
                 "license_type": existing_trial["license_type"],
+                "activated_at": existing_trial["activated_at"],
                 "expires_at": existing_trial["expires_at"],
                 "is_existing": True
             }
         }
 
-    # Create new trial license for this machine and activate immediately
-    trial_key = db.generate_license_key("trial")
-    result = await db.create_license_key(trial_key, "trial", "zupu")
+    # Create new trial license
+    # Step 1: Create short license key in database
+    result = await db.create_license_key("trial", "zupu")
 
-    if result.get("success"):
-        # Activate the trial license immediately with this machine code
-        activate_result = await db.activate_license(trial_key, machine_code)
-        if activate_result.get("success"):
-            await db.log_usage(machine_code, "trial_create", trial_key, client_ip)
-            return {
-                "success": True,
-                "data": {
-                    "license_key": result.get("encoded_key", trial_key),
-                    "license_type": "trial",
-                    "activated_at": activate_result.get("activated_at"),
-                    "expires_at": activate_result.get("expires_at"),
-                    "is_existing": False
-                }
-            }
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Failed to create trial license"))
 
-    raise HTTPException(status_code=500, detail=result.get("error", "Failed to create trial license"))
+    trial_key = result.get("license_key")
+
+    # Step 2: Activate with machine code
+    activate_result = await db.activate_license(trial_key, machine_code)
+    if not activate_result.get("success"):
+        raise HTTPException(status_code=500, detail="Failed to activate trial license")
+
+    await db.log_usage(machine_code, "trial_create", trial_key, client_ip)
+
+    return {
+        "success": True,
+        "data": {
+            "license_key": trial_key,  # Short format for display
+            "auth_code": activate_result.get("auth_code"),  # RSA encrypted for client verification
+            "license_type": "trial",
+            "activated_at": activate_result.get("activated_at"),
+            "expires_at": activate_result.get("expires_at"),
+            "is_existing": False
+        }
+    }

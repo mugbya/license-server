@@ -81,7 +81,11 @@ async def log_requests(request: Request, call_next):
     if body_bytes:
         try:
             body = body_bytes.decode()
-            log_msg += f" | Body: {body[:500]}"
+            # Mask sensitive fields
+            import re
+            body_masked = re.sub(r'("password":\s*")[^"]*(")', r'\1***\2', body)
+            body_masked = re.sub(r'("license_key":\s*")[^"]*(")', r'\1***\2', body_masked)
+            log_msg += f" | Body: {body_masked[:500]}"
         except:
             log_msg += " | Body: (binary)"
 
@@ -93,9 +97,10 @@ async def log_requests(request: Request, call_next):
     return response
 
 # CORS middleware
+# In production, replace with specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Development origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

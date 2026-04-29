@@ -2,30 +2,51 @@ import aiosqlite
 from typing import Optional, List
 from datetime import datetime, timedelta
 import hashlib
-import json
-import hmac
 import secrets
+import base64
+import json
+import uuid
 
 # Import from config
-from config import DATABASE_PATH, LICENSE_SECRET_KEY, YEAR_LICENSE_DAYS, TRIAL_LICENSE_UNIT, TRIAL_LICENSE_VALUE
+from config import (
+    DATABASE_PATH,
+    LICENSE_PRIVATE_KEY,
+    YEAR_LICENSE_DAYS,
+    TRIAL_LICENSE_UNIT,
+    TRIAL_LICENSE_VALUE,
+    DEFAULT_ADMIN_USERNAME,
+    DEFAULT_ADMIN_PASSWORD
+)
 
-# Validate that LICENSE_SECRET_KEY is set
-if LICENSE_SECRET_KEY is None:
+# Validate that LICENSE_PRIVATE_KEY is set
+if LICENSE_PRIVATE_KEY is None:
     raise RuntimeError(
-        "LICENSE_SECRET_KEY not configured. "
-        "Please create private.py with LICENSE_SECRET_KEY set to a 32-byte string."
+        "LICENSE_PRIVATE_KEY not configured. "
+        "Please create private.py with LICENSE_PRIVATE_KEY set to RSA private key."
     )
 
 try:
-    from Crypto.Cipher import AES
-    import base64
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
     HAS_CRYPTO = True
 except ImportError:
     HAS_CRYPTO = False
 
-# Default admin credentials (username: admin, password: admin123)
-DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "admin123"
+# Load RSA private key
+_private_key = None
+if HAS_CRYPTO and LICENSE_PRIVATE_KEY:
+    try:
+        _private_key = load_pem_private_key(
+            LICENSE_PRIVATE_KEY.encode(),
+            password=None,
+            backend=default_backend()
+        )
+    except Exception as e:
+        print(f"Failed to load private key: {e}")
+        _private_key = None
 
 
 def hash_password(password: str) -> str:
@@ -34,7 +55,11 @@ def hash_password(password: str) -> str:
 
 
 def generate_license_key(license_type: str) -> str:
-    """Generate a random license key with type-specific prefix"""
+    """Generate a random license key (short format) with type-specific prefix.
+
+    Format: GLY-XXXX-XXXX-XXXX-XXXX (4 groups of 4 chars)
+    This is the "许可证" that customers receive via email.
+    """
     prefix_map = {
         'year': 'GLY',      # 年度授权
         'trial': 'GLT',     # 试用授权
@@ -60,82 +85,148 @@ def get_trial_minutes() -> int:
     return value  # default to value as minutes
 
 
-def encode_license(license_key: str, license_type: str, expires_at: str = None) -> str:
-    """Encode license info into encrypted license code with format GLY-{base64}"""
-    if not HAS_CRYPTO:
-        # Fallback without encryption (not secure, only for development)
-        return license_key
+def encode_auth_code(license_key: str, license_type: str, expires_at: str = None, start_at: str = None, jti: str = None) -> str:
+    """Encode authorization code in JWT format (RS256).
 
-    # Calculate expiration timestamp
+    This creates the "授权码" that clients use for local verification.
+    Format: GLY-{base64url(header)}.base64url(payload).base64url(signature)}
+    JWT Payload contains: {"exp": timestamp, "jti": uuid, "start_at": datetime}
+
+    Args:
+        license_key: The short license key (GLY-XXXX-XXXX-XXXX-XXXX)
+        license_type: Type of license (year/trial/custom/permanent)
+        expires_at: Expiration datetime string (None for permanent)
+        start_at: Activation datetime string (None = current time)
+        jti: JWT ID for unique identification (None = auto generate uuid)
+
+    Returns:
+        Encoded auth code string in JWT format
+    """
+    global _private_key
+
+    if not HAS_CRYPTO or _private_key is None:
+        raise RuntimeError("Cryptography not available")
+
+    # Calculate expiration timestamp (0 means permanent)
     exp_timestamp = 0
     if expires_at:
         exp_timestamp = int(datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S").timestamp())
     elif license_type == "permanent":
-        exp_timestamp = 0  # 0 means permanent
+        exp_timestamp = 0
 
-    # Build data structure
-    data = {
-        "key": license_key,
-        "type": license_type,
-        "exp": exp_timestamp
+    # Use provided jti or generate new one
+    if jti is None:
+        jti = str(uuid.uuid4())
+
+    # Use provided start_at or current time
+    if start_at is None:
+        start_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Build JWT header
+    header = {
+        "alg": "RS256",
+        "typ": "JWT"
     }
 
-    # Calculate HMAC signature for integrity
-    json_str = json.dumps(data, separators=(',', ':'))
-    sig = hmac.new(
-        LICENSE_SECRET_KEY.encode(),
-        json_str.encode(),
-        hashlib.sha256
-    ).hexdigest()
-    data["sig"] = sig
+    # Build JWT payload
+    payload = {
+        "exp": exp_timestamp,
+        "jti": jti,
+        "start_at": start_at
+    }
 
-    # AES-GCM encryption
-    json_str = json.dumps(data, separators=(',', ':'))
-    cipher = AES.new(LICENSE_SECRET_KEY.encode()[:32], AES.MODE_GCM)
-    ciphertext, nonce = cipher.encrypt_and_digest(json_str.encode())
+    # Encode header and payload as base64url
+    header_b64 = base64.urlsafe_b64encode(json.dumps(header, separators=(',', ':')).encode()).decode().rstrip('=')
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload, separators=(',', ':')).encode()).decode().rstrip('=')
 
-    # Encode as base64 with GLY- prefix
-    encoded = base64.b64encode(nonce + ciphertext).decode()
-    return f"GLY-{encoded}"
+    # Create signing input
+    signing_input = f"{header_b64}.{payload_b64}"
+
+    # Sign with RSA private key (RS256 = RSA SHA256)
+    signature = _private_key.sign(
+        signing_input.encode(),
+        padding.PKCS1v15(),
+        hashes.SHA256()
+    )
+
+    # Encode signature as base64url
+    signature_b64 = base64.urlsafe_b64encode(signature).decode().rstrip('=')
+
+    # Get prefix
+    prefix_map = {
+        'year': 'GLY',
+        'trial': 'GLT',
+        'custom': 'GLC',
+        'permanent': 'GLP'
+    }
+    prefix = prefix_map.get(license_type, 'GLY')
+
+    # Format: GLY-{header}.{payload}.{signature}
+    return f"{prefix}-{header_b64}.{payload_b64}.{signature_b64}"
 
 
-def decode_license(encoded: str) -> Optional[dict]:
-    """Decode and verify license code. Returns license data or None if invalid."""
+def decode_auth_code(encoded: str) -> Optional[dict]:
+    """Decode and verify authorization code in JWT format (RS256).
+
+    This decodes the "授权码" to get exp, jti, start_at.
+    Format: GLY-{header}.{payload}.{signature}
+
+    Args:
+        encoded: The encoded auth code
+
+    Returns:
+        Dict with exp, jti, start_at or None if invalid
+    """
+    global _private_key
+
     if not encoded:
         return None
 
-    if not encoded.startswith(("GLY-", "GLT-", "GLC-", "GLP-")):
-        # Not an encrypted license, return None to indicate invalid format
+    if not HAS_CRYPTO or _private_key is None:
         return None
 
-    if not HAS_CRYPTO:
+    # Extract prefix and JWT parts
+    prefix_found = None
+    for prefix in ("GLY-", "GLT-", "GLC-", "GLP-"):
+        if encoded.startswith(prefix):
+            prefix_found = prefix[:-1]
+            break
+
+    if not prefix_found:
         return None
 
     try:
-        encrypted = base64.b64decode(encoded[4:])
-        nonce = encrypted[:16]
-        ciphertext = encrypted[16:]
+        # Get JWT part (after prefix)
+        jwt_part = encoded[len(prefix_found) + 1:]
 
-        cipher = AES.new(LICENSE_SECRET_KEY.encode()[:32], AES.MODE_GCM, nonce=nonce)
-        json_str = cipher.decrypt_and_verify(ciphertext, cipher.digest).decode()
-        data = json.loads(json_str)
+        # Split into header.payload.signature
+        parts = jwt_part.split('.')
+        if len(parts) != 3:
+            return None
+
+        header_b64, payload_b64, signature_b64 = parts
 
         # Verify signature
-        sig = data.pop("sig", None)
-        if not sig:
-            return None
+        signing_input = f"{header_b64}.{payload_b64}"
+        signature = base64.urlsafe_b64decode(signature_b64 + '==')
 
-        json_data = json.dumps(data, separators=(',', ':'))
-        expected_sig = hmac.new(
-            LICENSE_SECRET_KEY.encode(),
-            json_data.encode(),
-            hashlib.sha256
-        ).hexdigest()
+        public_key = _private_key.public_key()
+        public_key.verify(
+            signature,
+            signing_input.encode(),
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
 
-        if sig != expected_sig:
-            return None
+        # Decode payload
+        payload_json = base64.urlsafe_b64decode(payload_b64 + '==')
+        data = json.loads(payload_json)
 
-        return data
+        return {
+            "exp": data.get("exp", 0),
+            "jti": data.get("jti", ""),
+            "start_at": data.get("start_at", "")
+        }
     except Exception:
         return None
 
@@ -287,33 +378,14 @@ async def get_trial_by_machine_code(machine_code: str) -> Optional[dict]:
 
 
 async def activate_license(license_key: str, machine_code: str) -> dict:
+    """Activate a license key using the short license code.
+
+    The license_key here is the short format (GLY-XXXX-XXXX-XXXX-XXXX).
+    Server generates the auth code after activation.
+    """
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        # Try to decode license if it's in the encrypted format (GLY-...)
-        original_key = license_key
-        decoded_info = None
-
-        if license_key.startswith(("GLY-", "GLT-", "GLC-", "GLP-")):
-            decoded_info = decode_license(license_key)
-            if decoded_info:
-                original_key = decoded_info["key"]
-                # Verify the license type matches
-                stored_license = await get_license_by_key(original_key)
-                if stored_license and stored_license["license_type"] != decoded_info.get("type"):
-                    return {"success": False, "error": "授权码类型不匹配"}
-            # If decoding fails, still try with original key (plain format)
-
-        # Get the license key info - try decoded key first, then try as-is
-        license = None
-
-        # If we decoded successfully, try the decoded key first
-        if decoded_info:
-            license = await get_license_by_key(original_key)
-
-        # If not found or wasn't encoded, try with the key as-is
-        if not license:
-            license = await get_license_by_key(license_key)
-            if license:
-                original_key = license_key
+        # Get license by short key
+        license = await get_license_by_key(license_key)
 
         if not license:
             return {"success": False, "error": "授权码无效"}
@@ -324,9 +396,9 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
         if license["machine_code"] and license["machine_code"] != machine_code:
             return {"success": False, "error": "授权码已被其他机器使用"}
 
-        # Calculate expires_at based on license type (only for types that need calculation)
+        # Calculate expires_at based on license type
         activated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        expires_at = license["expires_at"]  # Preserve existing expires_at (e.g., for custom type)
+        expires_at = license["expires_at"]
 
         if license["license_type"] == "year":
             expires_at = (datetime.now() + timedelta(days=YEAR_LICENSE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
@@ -334,11 +406,14 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
             expires_at = (datetime.now() + timedelta(minutes=get_trial_minutes())).strftime("%Y-%m-%d %H:%M:%S")
         # permanent and custom types keep their original expires_at
 
+        # Generate auth code with RSA encryption
+        auth_code = encode_auth_code(license_key, license["license_type"], expires_at, activated_at)
+
         await db.execute(
             """UPDATE license_keys
                SET machine_code = ?, activated_at = ?, expires_at = ?, updated_at = datetime('now')
                WHERE license_key = ?""",
-            (machine_code, activated_at, expires_at, original_key)
+            (machine_code, activated_at, expires_at, license_key)
         )
         await db.commit()
 
@@ -346,34 +421,16 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
             "success": True,
             "license_type": license["license_type"],
             "activated_at": activated_at,
-            "expires_at": expires_at
+            "expires_at": expires_at,
+            "license_key": license_key,  # Short format for display
+            "auth_code": auth_code  # RSA encoded for client verification
         }
 
 
 async def verify_license(machine_code: str, license_key: str) -> dict:
+    """Verify license status by short license key"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        # Decode license if it's in the new encrypted format
-        original_key = license_key
-        encoded_exp = None  # Expiry from encoded license for validation
-
-        if license_key.startswith(("GLY-", "GLT-", "GLC-", "GLP-")):
-            decoded = decode_license(license_key)
-            if decoded:
-                original_key = decoded["key"]
-                # Get expiry from encoded license (0 means permanent)
-                encoded_exp = decoded.get("exp", 0)
-                # If encoded expiry is 0, it's permanent; otherwise it's a timestamp
-                if encoded_exp == 0:
-                    encoded_exp = None  # Permanent
-            # If decoding fails, we'll try the key as-is below
-
-        # Verify specific license key - try decoded key first, then key as-is
-        license = await get_license_by_key(original_key)
-        if not license:
-            # Try with key as-is (in case it was stored unencrypted or decoding failed)
-            license = await get_license_by_key(license_key)
-            if license:
-                original_key = license_key
+        license = await get_license_by_key(license_key)
 
         if not license:
             return {"valid": False, "error": "授权码无效"}
@@ -384,32 +441,39 @@ async def verify_license(machine_code: str, license_key: str) -> dict:
         if license["machine_code"] != machine_code:
             return {"valid": False, "error": "授权码与机器不匹配"}
 
-        # Check expiry from encoded license first (more secure)
-        if encoded_exp is not None:
-            # encoded_exp is a Unix timestamp
-            if encoded_exp > 0 and encoded_exp < datetime.now().timestamp():
-                return {"valid": False, "error": "授权已过期"}
-        elif license["expires_at"]:
-            # Fallback to database expiry
+        # Check expiry
+        if license["expires_at"]:
             expires_dt = datetime.strptime(license["expires_at"], "%Y-%m-%d %H:%M:%S")
             if expires_dt < datetime.now():
                 return {"valid": False, "error": "授权已过期"}
 
+        # Generate auth code for client
+        auth_code = encode_auth_code(license_key, license["license_type"], license["expires_at"], license["activated_at"])
+
         return {
             "valid": True,
             "license_type": license["license_type"],
-            "expires_at": license["expires_at"]
+            "expires_at": license["expires_at"],
+            "auth_code": auth_code
         }
 
 
-async def create_license_key(license_key: str, license_type: str, project: str = "zupu", expires_at: str = None) -> dict:
+async def create_license_key(license_type: str, project: str = "zupu", expires_at: str = None) -> dict:
+    """Create a new license key (short format) and store in database.
+
+    This is called when admin generates a license in the admin panel.
+    Returns the short license key (GLY-XXXX-XXXX-XXXX-XXXX) and auth_code.
+    """
     async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Generate short license key
+        license_key = generate_license_key(license_type)
+
         # Check if key already exists
         existing = await get_license_by_key(license_key)
         if existing:
             return {"success": False, "error": "授权码已存在"}
 
-        # If custom expires_at is provided, use it; otherwise calculate based on license_type
+        # Calculate expires_at if not provided
         final_expires_at = expires_at
         if not final_expires_at:
             if license_type == "year":
@@ -419,16 +483,22 @@ async def create_license_key(license_key: str, license_type: str, project: str =
             elif license_type == "permanent":
                 final_expires_at = None  # 永久授权没有到期时间
 
+        # Generate auth_code for this license (未激活状态下生成，但只在激活时才使用)
+        # 这里生成的是预授权码，实际使用时由activate_license重新生成
+        auth_code = encode_auth_code(license_key, license_type, final_expires_at)
+
         await db.execute(
             "INSERT INTO license_keys (license_key, license_type, project, expires_at) VALUES (?, ?, ?, ?)",
             (license_key, license_type, project, final_expires_at)
         )
         await db.commit()
 
-        # Encode the license key with expiry embedded
-        encoded_key = encode_license(license_key, license_type, final_expires_at)
-
-        return {"success": True, "expires_at": final_expires_at, "encoded_key": encoded_key}
+        return {
+            "success": True,
+            "license_key": license_key,  # Short format for email/display
+            "expires_at": final_expires_at,
+            "auth_code": auth_code  # Auth code for display
+        }
 
 
 async def revoke_license(license_key: str) -> dict:
@@ -458,58 +528,61 @@ async def get_all_license_keys(project: str = None) -> List[dict]:
             ) as cursor:
                 rows = await cursor.fetchall()
 
-        return [
-            {
+        result = []
+        for r in rows:
+            license_key = r[1]
+            license_type = r[2]
+            expires_at = r[6]
+
+            # Generate auth_code based on current state
+            # If activated, use actual activation time; otherwise use expires_at from creation
+            if r[5]:  # activated_at exists
+                auth_code = encode_auth_code(license_key, license_type, expires_at, r[5])
+            else:
+                # Not activated yet - still generate auth_code using expires_at
+                auth_code = encode_auth_code(license_key, license_type, expires_at)
+
+            result.append({
                 "id": r[0],
-                "license_key": r[1],
-                "license_type": r[2],
+                "license_key": license_key,
+                "license_type": license_type,
                 "project": r[3],
                 "machine_code": r[4],
                 "activated_at": r[5],
-                "expires_at": r[6],
+                "expires_at": expires_at,
                 "revoked": bool(r[7]),
                 "created_at": r[8],
-                "updated_at": r[9]
-            }
-            for r in rows
-        ]
+                "updated_at": r[9],
+                "auth_code": auth_code  # Auth code for display
+            })
+        return result
 
 
 async def get_license_key_stats(project: str = None) -> dict:
     """Get license key statistics"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        project_filter = f"WHERE project = '{project}'" if project else ""
-
         # Total keys
-        async with db.execute(f"SELECT COUNT(*) FROM license_keys {project_filter}") as cursor:
-            total_keys = (await cursor.fetchone())[0]
-
-        # Activated keys
-        async with db.execute(f"SELECT COUNT(*) FROM license_keys {project_filter} AND machine_code IS NOT NULL") as cursor:
-            activated_keys = (await cursor.fetchone())[0]
-
-        # Revoked keys
-        async with db.execute(f"SELECT COUNT(*) FROM license_keys {project_filter} AND revoked = 1") as cursor:
-            revoked_keys = (await cursor.fetchone())[0]
-
-        # By license type
-        async with db.execute(
-            f"""SELECT license_type, COUNT(*) as count
-               FROM license_keys {project_filter}
-               GROUP BY license_type"""
-        ) as cursor:
-            by_type = await cursor.fetchall()
-
-        # By project (if no project filter)
-        if not project:
-            async with db.execute(
-                """SELECT project, COUNT(*) as count
-                   FROM license_keys
-                   GROUP BY project"""
-            ) as cursor:
-                by_project = await cursor.fetchall()
-        else:
+        if project:
+            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = ?", (project,)) as cursor:
+                total_keys = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = ? AND machine_code IS NOT NULL", (project,)) as cursor:
+                activated_keys = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = ? AND revoked = 1", (project,)) as cursor:
+                revoked_keys = (await cursor.fetchone())[0]
+            async with db.execute("SELECT license_type, COUNT(*) as count FROM license_keys WHERE project = ? GROUP BY license_type", (project,)) as cursor:
+                by_type = await cursor.fetchall()
             by_project = []
+        else:
+            async with db.execute("SELECT COUNT(*) FROM license_keys") as cursor:
+                total_keys = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE machine_code IS NOT NULL") as cursor:
+                activated_keys = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE revoked = 1") as cursor:
+                revoked_keys = (await cursor.fetchone())[0]
+            async with db.execute("SELECT license_type, COUNT(*) as count FROM license_keys GROUP BY license_type") as cursor:
+                by_type = await cursor.fetchall()
+            async with db.execute("SELECT project, COUNT(*) as count FROM license_keys GROUP BY project") as cursor:
+                by_project = await cursor.fetchall()
 
         return {
             "total": total_keys,
@@ -556,41 +629,43 @@ async def save_usage_reports(reports: List[dict]) -> dict:
 async def get_usage_stats(project: str = None) -> dict:
     """Get usage statistics, optionally filtered by project"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        # Build project filter
-        project_filter = f"WHERE project = '{project}'" if project else ""
-
         # Total reports count
-        async with db.execute(f"SELECT COUNT(*) FROM usage_reports {project_filter}") as cursor:
-            total_reports = (await cursor.fetchone())[0]
-
-        # Reports by date
-        async with db.execute(
-            f"""SELECT report_date, COUNT(*) as count
-               FROM usage_reports {project_filter}
-               GROUP BY report_date
-               ORDER BY report_date DESC
-               LIMIT 30"""
-        ) as cursor:
-            reports_by_date = await cursor.fetchall()
-
-        # Reports by country
-        async with db.execute(
-            f"""SELECT country, COUNT(*) as count
-               FROM usage_reports {project_filter}
-               GROUP BY country
-               ORDER BY count DESC
-               LIMIT 10"""
-        ) as cursor:
-            reports_by_country = await cursor.fetchall()
-
-        # Recent reports
-        async with db.execute(
-            f"""SELECT project, app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at
-               FROM usage_reports {project_filter}
-               ORDER BY created_at DESC
-               LIMIT 50"""
-        ) as cursor:
-            recent_reports = await cursor.fetchall()
+        if project:
+            async with db.execute("SELECT COUNT(*) FROM usage_reports WHERE project = ?", (project,)) as cursor:
+                total_reports = (await cursor.fetchone())[0]
+            async with db.execute(
+                """SELECT report_date, COUNT(*) as count FROM usage_reports WHERE project = ?
+                   GROUP BY report_date ORDER BY report_date DESC LIMIT 30""",
+                (project,)
+            ) as cursor:
+                reports_by_date = await cursor.fetchall()
+            async with db.execute(
+                """SELECT country, COUNT(*) as count FROM usage_reports WHERE project = ?
+                   GROUP BY country ORDER BY count DESC LIMIT 10""",
+                (project,)
+            ) as cursor:
+                reports_by_country = await cursor.fetchall()
+            async with db.execute(
+                """SELECT project, app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at
+                   FROM usage_reports WHERE project = ? ORDER BY created_at DESC LIMIT 50""",
+                (project,)
+            ) as cursor:
+                recent_reports = await cursor.fetchall()
+        else:
+            async with db.execute("SELECT COUNT(*) FROM usage_reports") as cursor:
+                total_reports = (await cursor.fetchone())[0]
+            async with db.execute(
+                "SELECT report_date, COUNT(*) as count FROM usage_reports GROUP BY report_date ORDER BY report_date DESC LIMIT 30"
+            ) as cursor:
+                reports_by_date = await cursor.fetchall()
+            async with db.execute(
+                "SELECT country, COUNT(*) as count FROM usage_reports GROUP BY country ORDER BY count DESC LIMIT 10"
+            ) as cursor:
+                reports_by_country = await cursor.fetchall()
+            async with db.execute(
+                "SELECT project, app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at FROM usage_reports ORDER BY created_at DESC LIMIT 50"
+            ) as cursor:
+                recent_reports = await cursor.fetchall()
 
         return {
             "total_reports": total_reports,
@@ -629,7 +704,6 @@ async def verify_admin(username: str, password: str) -> Optional[dict]:
 
 async def change_admin_password(username: str, current_password: str, new_password: str) -> dict:
     """Change admin password"""
-    # First verify current password
     user = await verify_admin(username, current_password)
     if not user:
         return {"success": False, "error": "当前密码错误"}

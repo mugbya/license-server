@@ -20,6 +20,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [licenseType, setLicenseType] = useState<'year' | 'permanent' | 'custom'>('year')
   const [customExpiry, setCustomExpiry] = useState('')
   const [generatedKey, setGeneratedKey] = useState('')
+  const [generatedLicenseKey, setGeneratedLicenseKey] = useState('')  // 许可证（短格式）
   const [isGenerating, setIsGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
   const [stats, setStats] = useState<any>(null)
@@ -29,6 +30,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
+
+  // Decode license
+  const [decodeInput, setDecodeInput] = useState('')
+  const [decodeResult, setDecodeResult] = useState<any>(null)
+  const [decodeError, setDecodeError] = useState('')
 
   // License keys management
   const [licenseKeys, setLicenseKeys] = useState<any[]>([])
@@ -54,6 +60,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setIsGenerating(true)
     setError('')
     setGeneratedKey('')
+    setGeneratedLicenseKey('')
 
     try {
       // Calculate expires_at based on license type
@@ -82,8 +89,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       if (res.ok) {
         const data = await res.json()
-        // Use the encoded key returned from backend
-        setGeneratedKey(data.encoded_key || data.license_key)
+        // license_key: 短格式（客户输入的序列码）
+        // auth_code: JWT格式（授权码）
+        setGeneratedKey(data.auth_code)
+        setGeneratedLicenseKey(data.license_key)
       } else {
         const data = await res.json()
         setError(data.detail || '生成失败')
@@ -99,6 +108,79 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     navigator.clipboard.writeText(generatedKey)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const decodeLicense = async () => {
+    if (!decodeInput.trim()) {
+      setDecodeError('请输入授权码')
+      setDecodeResult(null)
+      return
+    }
+
+    try {
+      const res = await fetch('/api/license/decode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        },
+        body: JSON.stringify({ license_code: decodeInput.trim() })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) {
+          // Handle permanent license
+          if (data.data.is_permanent) {
+            setDecodeResult({
+              exp: 0,
+              expDate: '永久有效',
+              start_at: data.data.start_at || '-',
+              isExpired: false,
+              isPermanent: true
+            })
+          } else {
+            // Convert timestamp to readable date
+            const expDate = new Date(data.data.exp * 1000)
+            // Format start_at if available
+            const startAt = data.data.start_at
+              ? new Date(data.data.start_at).toLocaleString('zh-CN', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })
+              : '-'
+            setDecodeResult({
+              exp: data.data.exp,
+              expDate: expDate.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+              }),
+              start_at: startAt,
+              isExpired: expDate < new Date(),
+              isPermanent: false
+            })
+          }
+          setDecodeError('')
+        } else {
+          setDecodeResult(null)
+          setDecodeError(data.error || '解码失败')
+        }
+      } else {
+        setDecodeResult(null)
+        setDecodeError('解码请求失败')
+      }
+    } catch (err) {
+      setDecodeResult(null)
+      setDecodeError('网络错误')
+    }
   }
 
   const loadStats = async () => {
@@ -550,14 +632,28 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
                 {generatedKey && (
                   <div style={styles.resultBox}>
-                    <div style={styles.resultLabel}>生成的序列码：</div>
-                    <div style={styles.resultKey}>
-                      <code>{generatedKey}</code>
-                      <button onClick={copyKey} style={styles.copyButton}>
-                        {copied ? <Check size={18} /> : <Copy size={18} />}
-                        <span>{copied ? '已复制' : '复制'}</span>
-                      </button>
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={styles.resultLabel}>许可证（短格式）：</div>
+                      <div style={styles.resultKey}>
+                        <code style={{ fontSize: '18px', letterSpacing: '1px' }}>{generatedLicenseKey}</code>
+                        <button onClick={() => { navigator.clipboard.writeText(generatedLicenseKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }} style={styles.copyButton}>
+                          <Copy size={18} />
+                          <span>复制</span>
+                        </button>
+                      </div>
                     </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={styles.resultLabel}>授权码（JWT格式）：</div>
+                      <div style={{ ...styles.resultKey, flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <code style={{ fontSize: '13px', wordBreak: 'break-all', lineHeight: '1.6' }}>{generatedKey}</code>
+                        <button onClick={copyKey} style={{ ...styles.copyButton, marginTop: '12px' }}>
+                          <Copy size={18} />
+                          <span>复制</span>
+                        </button>
+                      </div>
+                    </div>
+
                     <div style={styles.resultHint}>
                       {licenseType === 'year' ? '年度授权，自发放日起1年内有效' :
                        licenseType === 'permanent' ? '永久授权，无有效期限制' :
@@ -565,6 +661,73 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     </div>
                   </div>
                 )}
+
+                {/* 解码授权码 */}
+                <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px dashed #ddd' }}>
+                  <div style={styles.resultLabel}>解码授权码：</div>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <input
+                      type="text"
+                      value={decodeInput}
+                      onChange={(e) => setDecodeInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && decodeLicense()}
+                      placeholder="输入授权码，如 GLY-xxx.xxx.xxx"
+                      style={{ ...styles.input, flex: 1, fontFamily: 'monospace', fontSize: '14px' }}
+                    />
+                    <button onClick={decodeLicense} style={styles.copyButton}>
+                      <RefreshCw size={18} />
+                      <span>解码</span>
+                    </button>
+                  </div>
+
+                  {decodeError && (
+                    <div style={styles.error}>{decodeError}</div>
+                  )}
+
+                  {decodeResult && (
+                    <div style={styles.resultBox}>
+                      <div style={styles.resultLabel}>解码结果：</div>
+                      <div style={{ background: 'white', padding: '18px 24px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                          <span style={{ fontSize: '14px', color: '#888' }}>激活时间：</span>
+                          <span style={{ marginLeft: '8px', fontSize: '15px', fontWeight: 600 }}>
+                            {decodeResult.start_at || '-'}
+                          </span>
+                        </div>
+                        <div style={{ marginBottom: '12px' }}>
+                          <span style={{ fontSize: '14px', color: '#888' }}>过期时间：</span>
+                          <span style={{ marginLeft: '8px', fontSize: '15px', fontWeight: 600 }}>
+                            {decodeResult.expDate}
+                          </span>
+                        </div>
+                        <div style={{ marginBottom: '12px' }}>
+                          <span style={{ fontSize: '14px', color: '#888' }}>授权类型：</span>
+                          <span style={{
+                            marginLeft: '8px',
+                            fontSize: '15px',
+                            fontWeight: 600,
+                            color: decodeResult.isPermanent ? '#667eea' : '#333'
+                          }}>
+                            {decodeResult.isPermanent ? '永久授权' : '临时授权'}
+                          </span>
+                          {!decodeResult.isPermanent && (
+                            <span style={{
+                              marginLeft: '12px',
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              backgroundColor: decodeResult.isExpired ? '#fee' : '#efe',
+                              color: decodeResult.isExpired ? '#e53e3e' : '#38a169'
+                            }}>
+                              {decodeResult.isExpired ? '已过期' : '有效'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -758,6 +921,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       <thead>
                         <tr>
                           <th style={styles.th}>序列码</th>
+                          <th style={styles.th}>授权码</th>
                           <th style={styles.th}>类型</th>
                           <th style={styles.th}>状态</th>
                           <th style={styles.th}>绑定机器</th>
@@ -771,6 +935,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           <tr key={k.id} style={styles.tr}>
                             <td style={styles.td}>
                               <code style={styles.code}>{k.license_key}</code>
+                            </td>
+                            <td style={styles.td}>
+                              <code style={{ ...styles.code, fontSize: '12px', wordBreak: 'break-all' }}>{k.auth_code || '-'}</code>
                             </td>
                             <td style={styles.td}>
                               {k.license_type === 'year' ? '年度' : k.license_type === 'permanent' ? '永久' : k.license_type === 'custom' ? '自定义' : k.license_type === 'trial' ? '试用' : k.license_type}
