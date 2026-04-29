@@ -260,7 +260,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         const data = await res.json()
         setLicenseKeys(data.data)
       }
-      // Load stats too
+    } catch (err) {
+      console.error('加载序列码失败:', err)
+    } finally {
+      setIsLoadingKeys(false)
+    }
+  }
+
+  const loadKeysStats = async () => {
+    try {
       const statsUrl = currentProject ? `/api/license/keys/stats?project=${currentProject.code}` : '/api/license/keys/stats'
       const statsRes = await fetch(statsUrl, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
@@ -270,9 +278,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         setKeysStats(statsData.data)
       }
     } catch (err) {
-      console.error('加载序列码失败:', err)
-    } finally {
-      setIsLoadingKeys(false)
+      console.error('加载统计失败:', err)
     }
   }
 
@@ -395,7 +401,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     使用统计
                   </button>
                   <button
-                    onClick={() => { setActiveTab('keys_stats'); loadLicenseKeys(); }}
+                    onClick={() => { setActiveTab('keys_stats'); loadKeysStats(); }}
                     style={{
                       ...styles.subMenuItem,
                       backgroundColor: activeTab === 'keys_stats' ? 'white' : 'transparent',
