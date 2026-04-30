@@ -10,3 +10,5 @@ dist/
 
 # Private configuration - contains sensitive keys
 private.py
+backend/.venv/
+.venv/
