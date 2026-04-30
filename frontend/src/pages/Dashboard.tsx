@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Key, BarChart3, LogOut, Copy, Check, Plus, RefreshCw, Folder, Edit2, Trash2, X } from 'lucide-react'
 
 interface DashboardProps {
@@ -52,9 +52,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [projectForm, setProjectForm] = useState({ name: '', code: '', disabled: false })
   const [projectError, setProjectError] = useState('')
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  const projectsLoaded = useRef(false)
 
-  // 加载项目列表
+  // 加载项目列表 (防止 StrictMode 下重复调用)
   useEffect(() => {
+    if (projectsLoaded.current) return
+    projectsLoaded.current = true
     loadProjects()
   }, [])
 
