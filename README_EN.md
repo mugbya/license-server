@@ -171,6 +171,60 @@ sudo ./manage.sh restart  # Restart service
 sudo ./manage.sh stop     # Stop service
 ```
 
+
+
+---
+
+## GitHub Auto Deploy
+
+Automatically deploy to server when code is pushed to main branch.
+
+### 1. Configure GitHub Secrets
+
+Add in GitHub repository Settings → Secrets and variables → Actions:
+
+| Secret Name | Description | Example |
+|------------|-------------|---------|
+| `SERVER_HOST` | Server IP | `123.45.67.89` |
+| `SERVER_USER` | SSH username | `ubuntu` |
+| `SERVER_PASSWORD` | SSH password or key | `your-password` |
+| `SERVER_PORT` | SSH port | `22` |
+
+### 2. Server Setup
+
+```bash
+# Ensure git is installed
+sudo apt install git
+
+# Create directory
+sudo mkdir -p /opt/license-server
+
+# Initialize git repo (if not already)
+cd /opt/license-server
+git init
+git remote add origin https://github.com/your-username/license-server.git
+git pull origin main
+
+# Run deployment script manually once
+cd deploy/systemd
+chmod +x setup.sh manage.sh
+sudo ./setup.sh
+```
+
+### 3. Push to Trigger Deploy
+
+```bash
+git add .
+git commit -m "update"
+git push origin main
+```
+
+Check GitHub Actions page for deployment progress.
+
+### 4. Manual Trigger
+
+Go to GitHub repository Actions → "Deploy to Server" → "Run workflow"
+
 ## License Code Format
 
 ### Short Format (license_key)

@@ -171,6 +171,60 @@ sudo ./manage.sh restart  # 重启服务
 sudo ./manage.sh stop     # 停止服务
 ```
 
+
+
+---
+
+## GitHub 自动部署
+
+代码推送到 main 分支时自动部署到服务器。
+
+### 1. 配置 GitHub Secrets
+
+在 GitHub 仓库 Settings → Secrets and variables → Actions 中添加：
+
+| Secret 名称 | 说明 | 示例 |
+|------------|------|------|
+| `SERVER_HOST` | 服务器 IP | `123.45.67.89` |
+| `SERVER_USER` | SSH 用户名 | `ubuntu` |
+| `SERVER_PASSWORD` | SSH 密码或密钥 | `your-password` |
+| `SERVER_PORT` | SSH 端口 | `22` |
+
+### 2. 服务器准备
+
+```bash
+# 确保 git 已安装
+sudo apt install git
+
+# 确保有 /opt/license-server 目录
+sudo mkdir -p /opt/license-server
+
+# 初始化 git 仓库（如果还没有）
+cd /opt/license-server
+git init
+git remote add origin https://github.com/你的用户名/license-server.git
+git pull origin main
+
+# 手动运行一次部署脚本
+cd deploy/systemd
+chmod +x setup.sh manage.sh
+sudo ./setup.sh
+```
+
+### 3. 推送代码自动部署
+
+```bash
+git add .
+git commit -m "update"
+git push origin main
+```
+
+推送后访问 GitHub Actions 页面查看部署进度。
+
+### 4. 手动触发部署
+
+在 GitHub 仓库 Actions 页面点击 "Deploy to Server" → "Run workflow"
+
 ## 授权码格式
 
 ### 短格式 (license_key)
