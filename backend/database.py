@@ -6,6 +6,7 @@ import secrets
 import base64
 import json
 import uuid
+import logging
 
 # Import from config
 from config import (
@@ -18,13 +19,16 @@ from config import (
     DEFAULT_ADMIN_PASSWORD
 )
 
+# Logger for this module
+logger = logging.getLogger("license_server")
+
 # Try to import bcrypt, fall back to SHA256 if not available
 try:
     import bcrypt
     HAS_BCRYPT = True
 except ImportError:
     HAS_BCRYPT = False
-    print("Warning: bcrypt not available, using SHA256 (not recommended for production)")
+    logger.warning("bcrypt not available, using SHA256 (not recommended for production)")
 
 # Validate that LICENSE_PRIVATE_KEY is set
 if LICENSE_PRIVATE_KEY is None:
@@ -53,7 +57,7 @@ if HAS_CRYPTO and LICENSE_PRIVATE_KEY:
             backend=default_backend()
         )
     except Exception as e:
-        print(f"Failed to load private key: {e}")
+        logger.error(f"Failed to load private key: {e}")
         _private_key = None
 
 
