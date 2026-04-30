@@ -4,11 +4,13 @@
 
 set -e
 
-APP_DIR="/opt/license-server"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$(dirname "$SCRIPT_DIR")"
 SERVICE_USER="www-data"
 SERVICE_NAME="license-server"
 
 echo "===== License Server 部署脚本 ====="
+echo "项目目录: $APP_DIR"
 
 # 1. 创建应用目录
 echo "[1/6] 创建应用目录..."
