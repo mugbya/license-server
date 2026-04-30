@@ -27,7 +27,12 @@ jobs:
             # 拉取最新代码
             git pull origin main
 
-            # 如果后端有更新，重启服务
+            # 构建前端
+            cd /opt/license-server/frontend
+            npm install
+            npm run build
+
+            # 重启后端服务
             cd /opt/license-server/deploy/systemd
             sudo ./manage.sh restart
 
