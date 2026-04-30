@@ -2,9 +2,9 @@ import os
 
 # Server configuration
 HOST = "0.0.0.0"
-PORT = 80
+PORT = 8080
 
-# Database
+# Database (in backend directory)
 DATABASE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".license_server.db")
 
 # Logging

@@ -3,13 +3,20 @@
 
 import multiprocessing
 import os
+import sys
+
+# Add backend directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import from config.py
+from config import HOST, PORT
 
 # Server socket
-bind = "0.0.0.0:8080"
+bind = f"{HOST}:{PORT}"
 backlog = 2048
 
 # Worker processes
-workers = int(os.environ.get("GUNICORN_WORKERS", 4))
+workers = int(os.environ.get("GUNICORN_WORKERS", multiprocessing.cpu_count() * 2 + 1))
 worker_class = "uvicorn.workers.UvicornWorker"
 worker_connections = 1000
 max_requests = 1000

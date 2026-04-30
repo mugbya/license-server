@@ -175,6 +175,60 @@ sudo ./manage.sh stop     # 停止服务
 
 ---
 
+
+
+## Nginx 反向代理部署
+
+使用 Nginx 作为前端静态文件和后端 API 的统一入口。
+
+### 安装 Nginx
+
+```bash
+sudo apt install nginx
+```
+
+### 部署配置
+
+```bash
+# 复制 Nginx 配置
+sudo cp deploy/nginx/license-server.conf /etc/nginx/sites-available/license-server
+
+# 启用站点
+sudo ln -s /etc/nginx/sites-available/license-server /etc/nginx/sites-enabled/
+
+# 测试配置
+sudo nginx -t
+
+# 重载 Nginx
+sudo systemctl reload nginx
+```
+
+### 前端构建
+
+```bash
+cd /opt/license-server/frontend
+npm install
+npm run build
+```
+
+### 访问方式
+
+- HTTP: `http://服务器IP/`
+- API: `http://服务器IP/api/`
+
+### HTTPS 配置
+
+使用 Let's Encrypt 免费证书：
+
+```bash
+# 安装 Certbot
+sudo apt install certbot python3-certbot-nginx
+
+# 获取证书
+sudo certbot --nginx -d your-domain.com
+
+# 自动续期已配置
+```
 ## GitHub 自动部署
 
 代码推送到 main 分支时自动部署到服务器。

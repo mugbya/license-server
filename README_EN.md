@@ -175,6 +175,61 @@ sudo ./manage.sh stop     # Stop service
 
 ---
 
+
+
+## Nginx Reverse Proxy Deployment
+
+Use Nginx as the unified entry point for frontend static files and backend API.
+
+### Install Nginx
+
+```bash
+sudo apt install nginx
+```
+
+### Deploy Configuration
+
+```bash
+# Copy Nginx config
+sudo cp deploy/nginx/license-server.conf /etc/nginx/sites-available/license-server
+
+# Enable site
+sudo ln -s /etc/nginx/sites-available/license-server /etc/nginx/sites-enabled/
+
+# Test config
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
+```
+
+### Build Frontend
+
+```bash
+cd /opt/license-server/frontend
+npm install
+npm run build
+```
+
+### Access
+
+- HTTP: `http://server-ip/`
+- API: `http://server-ip/api/`
+
+### HTTPS Setup
+
+Using Let's Encrypt free certificate:
+
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx
+
+# Get certificate
+sudo certbot --nginx -d your-domain.com
+
+# Auto-renewal is configured
+```
+
 ## GitHub Auto Deploy
 
 Automatically deploy to server when code is pushed to main branch.
