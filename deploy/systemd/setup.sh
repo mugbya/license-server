@@ -9,7 +9,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="$(dirname "$SCRIPT_DIR")"
+APP_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SERVICE_USER="www-data"
 SERVICE_NAME="license-server"
 

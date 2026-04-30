@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Generate RSA keys for license signing"""
+"""Generate RSA keys and create private.py configuration file"""
+import os
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+
+print("=" * 60)
+print("License Server 配置生成器")
+print("=" * 60)
 
 # Generate RSA private key (2048 bits)
 private_key = rsa.generate_private_key(
@@ -27,21 +32,65 @@ public_pem = public_key.public_bytes(
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 )
 
+private_pem_str = private_pem.decode()
+public_pem_str = public_pem.decode()
+
+# Create private.py content
+private_py_content = f'''# Private configuration - DO NOT commit to git
+# 请修改以下配置值为你的实际值
+
+# JWT secret (生产环境请修改为随机字符串)
+JWT_SECRET = "your-secret-key-change-in-production"
+JWT_ALGORITHM = "HS256"
+
+# 默认管理员账号密码 (首次登录后请修改)
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "admin123"
+
+# RSA 私钥 (自动生成)
+LICENSE_PRIVATE_KEY = """{private_pem_str}"""
+'''
+
+# Create backend/private.py
+backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+private_py_path = os.path.join(backend_dir, "private.py")
+
+# Backup existing file if exists
+if os.path.exists(private_py_path):
+    backup_path = private_py_path + ".bak"
+    print(f"检测到已存在的 private.py，备份到: {backup_path}")
+    os.rename(private_py_path, backup_path)
+
+# Write new private.py
+with open(private_py_path, 'w') as f:
+    f.write(private_py_content)
+
+print(f"\n已创建: {private_py_path}")
+
+print("\n" + "=" * 60)
+print("公钥 (嵌入到客户端代码中用于验证授权码):")
 print("=" * 60)
-print("Private Key (save to private.py as LICENSE_PRIVATE_KEY):")
-print("=" * 60)
-print(private_pem.decode())
+print(public_pem_str)
 
 print("=" * 60)
-print("Public Key (will be embedded in client):")
+print("公钥 (单行格式，便于复制):")
 print("=" * 60)
-print(public_pem.decode())
+print(repr(public_pem_str))
 
-# Also print as single line for easy copying
+print("\n" + "=" * 60)
+print("下一步操作:")
 print("=" * 60)
-print("Private Key (single line for private.py):")
+print("1. 检查并修改 backend/private.py 中的配置:")
+print("   - JWT_SECRET (生产环境必改)")
+print("   - DEFAULT_ADMIN_PASSWORD (首次登录后必改)")
+print("")
+print("2. 将上面的公钥嵌入到客户端软件中")
+print("")
+print("3. 启动服务:")
+print("   cd backend")
+print("   python -m venv .venv")
+print("   source .venv/bin/activate")
+print("   pip install -r requirements.txt")
+print("   gunicorn -c gunicorn.conf.py main:app")
+print("")
 print("=" * 60)
-print(repr(private_pem.decode()))
-
-print("\nPublic Key (single line for client):")
-print(repr(public_pem.decode()))
