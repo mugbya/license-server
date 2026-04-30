@@ -12,3 +12,4 @@ dist/
 private.py
 backend/.venv/
 .venv/
+frontend/package-lock.json

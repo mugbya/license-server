@@ -28,42 +28,24 @@
 pip install -r requirements.txt
 ```
 
-### 2. 配置 private.py（重要）
+### 2. 生成 RSA 密钥（重要）
 
-**必须创建 `private.py` 文件**，复制以下内容并修改相应值：
+**运行 `generate_keys.py` 自动生成密钥并创建 `private.py`**：
 
-```python
-# private.py - 敏感配置 (不提交到 git)
-
-# JWT secret (生产环境请修改)
-JWT_SECRET = "your-secret-key-change-in-production"
-JWT_ALGORITHM = "HS256"
-
-# 默认管理员账号密码 (首次登录后请修改)
-DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "admin123"
-
-# RSA 私钥 (用于授权码签名)
-# 运行 generate_keys.py 生成新的密钥对
-LICENSE_PRIVATE_KEY = """-----BEGIN RSA PRIVATE KEY-----
-在此粘贴你的私钥
------END RSA PRIVATE KEY-----"""
-```
-
-### 3. 生成 RSA 密钥（重要）
-
-`generate_keys.py` 用于生成 RSA 密钥对：
-- **私钥**：保存在 `private.py` 中，用于服务器签名授权码
-- **公钥**：嵌入到客户端软件中，用于验证授权码
-
-运行生成脚本：
 ```bash
 python generate_keys.py
 ```
 
-将输出的私钥粘贴到 `private.py`，公钥嵌入到客户端代码中。
+脚本会自动：
+- 生成 RSA 2048 位密钥对
+- 在 `backend/private.py` 中创建 JWT_SECRET、默认管理员账号密码和私钥配置
+- 输出公钥供客户端嵌入使用
 
-### 4. 启动后端服务
+**重要：请修改 `backend/private.py` 中的以下配置：**
+- `JWT_SECRET`: 生产环境请改为随机字符串
+- `DEFAULT_ADMIN_PASSWORD`: 首次登录后请修改
+
+### 3. 启动后端服务
 
 ```bash
 cd backend
@@ -73,24 +55,9 @@ python main.py
 
 服务启动后访问 `http://localhost:8080`
 
-### 5. 启动前端服务（开发模式）
+### 4. 登录管理后台
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-前端开发服务器启动后访问 `http://localhost:9527`
-
-> 生产环境可使用 `npm run build` 构建后部署
-
-### 6. 登录管理后台
-
-<!-- 截图预留位置 -->
-<!-- ![登录界面] -->
-
-默认账号：`admin` / `admin123`
+默认账号：`admin` / `admin123`（首次登录后请修改）
 
 ## API 接口
 
@@ -247,8 +214,13 @@ sudo certbot --nginx -d your-domain.com
 ### 2. 服务器准备
 
 ```bash
-# 确保 git 已安装
-sudo apt install git
+# 安装基础软件 (CentOS/Rocky)
+sudo yum install -y git
+
+# 安装 Node.js 18.x (用于构建前端)
+curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+sudo yum install -y nodejs
+node --version  # 确认版本
 
 # 确保有 /opt/license-server 目录
 sudo mkdir -p /opt/license-server
@@ -307,27 +279,100 @@ GLY-eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjE3MDk4MzIwMDAsImp0aSI6IjEyMzQ1Njc4LTEyMzQtMTI
 6. 客户使用授权码激活软件
 ```
 
+## 系统架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        用户浏览器                          │
+│                   http://服务器IP/                        │
+└─────────────────────────┬─────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        Nginx (端口 80)                    │
+│  ┌───────────────────┬─────────────────────────────────┐ │
+│  │   静态文件服务     │        API 代理                  │ │
+│  │   /frontend/dist  │        /api/* → :8080          │ │
+│  └───────────────────┴─────────────────────────────────┘ │
+└─────────────────────────┬─────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Gunicorn + UvicornWorker (端口 8080)          │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                    FastAPI 后端                      │   │
+│  │   /api/license/*  /api/admin/*  /api/projects/*   │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────┬─────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     SQLite 数据库                           │
+│                   backend/.license_server.db               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 访问流程
+
+| 访问路径 | 服务 | 说明 |
+|---------|------|------|
+| `http://服务器IP/` | Nginx | 前端管理页面 |
+| `http://服务器IP/api/*` | Nginx → Gunicorn | 后端 API |
+
+### 端口配置
+
+| 组件 | 默认端口 | 配置位置 |
+|------|---------|----------|
+| Nginx | 80 | `/etc/nginx/conf.d/license-server.conf` |
+| Gunicorn | 8080 | `backend/config.py` |
+
+### 重启服务
+
+```bash
+# 重启后端
+sudo systemctl restart license-server
+
+# 重载 Nginx
+sudo systemctl reload nginx
+```
+
 ## 目录结构
 
 ```
 license-server/
-├── backend/              # 后端目录
-│   ├── main.py           # FastAPI 入口
-│   ├── config.py        # 配置文件
-│   ├── database.py      # 数据库操作
-│   ├── models.py        # 数据模型
-│   ├── private.py        # ⚠️ 敏感配置 (需手动创建，不提交到 git)
-│   ├── requirements.txt  # Python 依赖
-│   └── routers/          # API 路由
-│       ├── admin.py      # 管理员接口
-│       ├── license.py    # 授权接口
-│       └── projects.py   # 项目接口
-├── frontend/             # 前端目录
-│   ├── src/              # React 源码
-│   │   └── pages/        # React 页面
+├── .github/                      # GitHub 配置
+│   └── workflows/
+│       └── deploy.yml            # 自动部署工作流
+├── backend/                     # 后端目录
+│   ├── main.py                   # FastAPI 入口
+│   ├── config.py                 # 配置文件
+│   ├── database.py               # 数据库操作
+│   ├── models.py                 # 数据模型
+│   ├── private.py                # ⚠️ 敏感配置 (由 generate_keys.py 自动生成，不提交到 git)
+│   ├── requirements.txt          # Python 依赖
+│   ├── gunicorn.conf.py          # Gunicorn 配置
+│   └── routers/                  # API 路由
+│       ├── admin.py              # 管理员接口
+│       ├── license.py            # 授权接口
+│       └── projects.py           # 项目接口
+├── frontend/                     # 前端目录
+│   ├── src/                      # React 源码
+│   │   ├── pages/                # React 页面
+│   │   └── ...
+│   ├── index.html
+│   ├── package.json
 │   └── ...
-├── generate_keys.py      # RSA 密钥生成脚本
-└── logs/                # 日志目录
+├── deploy/                       # 部署配置
+│   ├── systemd/                  # Systemd 部署
+│   │   ├── setup.sh              # 安装脚本
+│   │   └── manage.sh             # 管理脚本
+│   └── nginx/                    # Nginx 配置
+│       ├── license-server.conf   # HTTP 配置
+│       └── license-server-ssl.conf # HTTPS 配置
+├── generate_keys.py              # RSA 密钥生成脚本
+├── docker-compose.yml            # Docker 部署配置
+├── README.md
+└── README_EN.md
 ```
 
 ## 配置说明
