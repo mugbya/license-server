@@ -254,7 +254,14 @@ Go to GitHub repository Actions → "Deploy to Server" → "Run workflow"
 
 ## License Code Format
 
-### Short Format (license_key)
+### Two codes generated simultaneously
+
+| Name | Format | Purpose | Delivery |
+|------|--------|---------|----------|
+| **license_key** | `GLY-XXXX-XXXX-XXXX-XXXX` | Customer activation | Email/SMS |
+| **auth_code** | `GLY-{header}.{payload}.{signature}` | Client local verification | Returned on activation |
+
+### license_key Format
 ```
 GLY-XXXX-XXXX-XXXX-XXXX
 ```
@@ -263,11 +270,25 @@ GLY-XXXX-XXXX-XXXX-XXXX
 - `GLC`: Custom license
 - `GLP`: Permanent license
 
-### JWT Format (auth_code)
+### auth_code Format (JWT RS256)
 ```
 GLY-eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjE3MDk4MzIwMDAsImp0aSI6IjEyMzQ1Njc4LTEyMzQtMTIzNC0xMjM0LTUxMjM0NTY3ODkwIn0.SIGNATURE
 ```
 Contains expiration time, JTI (unique ID), and activation time.
+
+### Authorization Flow
+
+```
+1. Server generates → license_key + auth_code (simultaneously)
+
+2. Server sends license_key to customer (email/SMS)
+
+3. Customer calls /api/license/activate(license_key, machine_code)
+
+4. Server returns auth_code to client
+
+5. Client decodes auth_code with public key, checks exp timestamp
+```
 
 ## Usage Flow
 
@@ -275,9 +296,10 @@ Contains expiration time, JTI (unique ID), and activation time.
 1. Login to admin panel
 2. Project Management → Create project (e.g., "My Software A")
 3. Switch to target project in the top selector
-4. Generate License → Select license type
-5. Send license code to customer
-6. Customer activates software with the code
+4. Generate License → Select license type → System generates both license_key and auth_code
+5. Send license_key to customer (email/SMS)
+6. Customer activates software with license_key, server returns auth_code
+7. Client uses public key to verify auth_code, checks expiration
 ```
 
 ## Project Structure

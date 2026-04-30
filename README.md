@@ -253,7 +253,14 @@ git push origin main
 
 ## 授权码格式
 
-### 短格式 (license_key)
+### 生成时同时产生两个码
+
+| 名称 | 格式 | 用途 | 发送方式 |
+|------|------|------|----------|
+| **license_key**（许可证） | `GLY-XXXX-XXXX-XXXX-XXXX` | 客户激活用 | 邮件/短信等外部渠道 |
+| **auth_code**（授权码） | `GLY-{header}.{payload}.{signature}` | 客户端本地验签 | 激活时返回给客户端 |
+
+### license_key 格式
 ```
 GLY-XXXX-XXXX-XXXX-XXXX
 ```
@@ -262,11 +269,25 @@ GLY-XXXX-XXXX-XXXX-XXXX
 - `GLC`: 自定义授权
 - `GLP`: 永久授权
 
-### JWT 格式 (auth_code)
+### auth_code 格式 (JWT RS256)
 ```
 GLY-eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjE3MDk4MzIwMDAsImp0aSI6IjEyMzQ1Njc4LTEyMzQtMTIzNC0xMjM0LTUxMjM0NTY3ODkwIn0.SIGNATURE
 ```
 包含过期时间、JTI (唯一标识)、激活时间。
+
+### 授权验证完整流程
+
+```
+1. 服务端生成 → license_key + auth_code（同时生成）
+
+2. 服务端把 license_key 发给客户（邮件/短信）
+
+3. 客户调用 /api/license/activate(license_key, machine_code)
+
+4. 服务端返回 auth_code 给客户端
+
+5. 客户端用公钥解码 auth_code，检查 exp 是否过期
+```
 
 ## 使用流程
 
@@ -274,9 +295,10 @@ GLY-eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjE3MDk4MzIwMDAsImp0aSI6IjEyMzQ1Njc4LTEyMzQtMTI
 1. 登录管理后台
 2. 项目管理 → 创建项目 (如 "我的软件A")
 3. 在顶部切换到目标项目
-4. 生成授权码 → 选择授权类型
-5. 将授权码发送给客户
-6. 客户使用授权码激活软件
+4. 生成授权码 → 选择授权类型 → 系统同时生成 license_key 和 auth_code
+5. 将 license_key 发送给客户（邮件/短信）
+6. 客户使用 license_key 激活软件，服务端返回 auth_code
+7. 客户端本地用公钥验签 auth_code，检查过期时间
 ```
 
 ## 系统架构
