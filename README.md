@@ -121,6 +121,56 @@ npm run dev
 | `/api/projects` | GET/POST | 项目列表/创建 |
 | `/api/projects/{id}` | PUT/DELETE | 更新/删除项目 |
 
+## 部署方式
+
+### Docker 部署
+
+```bash
+# 构建并启动
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
+# 重新构建
+docker-compose up -d --build
+```
+
+### Systemd + Gunicorn 部署（腾讯云轻量服务器推荐）
+
+适用于 2核2G 服务器，使用 systemd 管理进程。
+
+**目录结构**：
+```
+/opt/license-server/
+├── backend/
+│   ├── main.py
+│   ├── gunicorn.conf.py
+│   ├── logs/
+│   └── data/
+└── frontend/
+```
+
+**快速部署**：
+```bash
+# 上传代码后，进入 deploy/systemd 目录
+cd deploy/systemd
+chmod +x setup.sh manage.sh
+sudo ./setup.sh
+```
+
+**管理命令**：
+```bash
+cd /opt/license-server/deploy/systemd
+sudo ./manage.sh status   # 查看状态
+sudo ./manage.sh logs     # 查看日志
+sudo ./manage.sh restart  # 重启服务
+sudo ./manage.sh stop     # 停止服务
+```
+
 ## 授权码格式
 
 ### 短格式 (license_key)

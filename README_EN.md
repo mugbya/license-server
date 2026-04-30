@@ -121,6 +121,56 @@ Default credentials: `admin` / `admin123`
 | `/api/projects` | GET/POST | List/create projects |
 | `/api/projects/{id}` | PUT/DELETE | Update/delete project |
 
+## Deployment
+
+### Docker Deployment
+
+```bash
+# Build and start
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop service
+docker-compose down
+
+# Rebuild
+docker-compose up -d --build
+```
+
+### Systemd + Gunicorn Deployment (Recommended for Tencent Cloud)
+
+For 2 core 2GB servers, use systemd for process management.
+
+**Directory Structure**:
+```
+/opt/license-server/
+├── backend/
+│   ├── main.py
+│   ├── gunicorn.conf.py
+│   ├── logs/
+│   └── data/
+└── frontend/
+```
+
+**Quick Setup**:
+```bash
+# After uploading code, go to deploy/systemd directory
+cd deploy/systemd
+chmod +x setup.sh manage.sh
+sudo ./setup.sh
+```
+
+**Management Commands**:
+```bash
+cd /opt/license-server/deploy/systemd
+sudo ./manage.sh status   # Check status
+sudo ./manage.sh logs     # View logs
+sudo ./manage.sh restart  # Restart service
+sudo ./manage.sh stop     # Stop service
+```
+
 ## License Code Format
 
 ### Short Format (license_key)

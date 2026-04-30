@@ -1,0 +1,21 @@
+[Unit]
+Description=License Server
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/license-server/backend
+Environment="PATH=/opt/license-server/backend/.venv/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/opt/license-server/backend/.venv/bin/gunicorn -c /opt/license-server/backend/gunicorn.conf.py main:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

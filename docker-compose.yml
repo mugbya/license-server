@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  license-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: license-server
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount database and logs to persist data
+      - ./backend/data:/app/data
+      - ./backend/logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GUNICORN_WORKERS=4
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
