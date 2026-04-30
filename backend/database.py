@@ -18,6 +18,14 @@ from config import (
     DEFAULT_ADMIN_PASSWORD
 )
 
+# Try to import bcrypt, fall back to SHA256 if not available
+try:
+    import bcrypt
+    HAS_BCRYPT = True
+except ImportError:
+    HAS_BCRYPT = False
+    print("Warning: bcrypt not available, using SHA256 (not recommended for production)")
+
 # Validate that LICENSE_PRIVATE_KEY is set
 if LICENSE_PRIVATE_KEY is None:
     raise RuntimeError(
@@ -50,8 +58,55 @@ if HAS_CRYPTO and LICENSE_PRIVATE_KEY:
 
 
 def hash_password(password: str) -> str:
-    """Hash password using SHA256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt (if available) or SHA256 with salt (fallback)"""
+    if HAS_BCRYPT:
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    else:
+        # Fallback: Use SHA256 with random salt (less secure, but works without bcrypt)
+        salt = secrets.token_hex(16)
+        return f"{salt}${hashlib.sha256((salt + password).encode()).hexdigest()}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify password against hash.
+
+    Supports two password formats:
+    1. New format: bcrypt(SHA256(original_password)) - for passwords sent as SHA256 from frontend
+    2. Legacy format: bcrypt(original_password) - for original passwords
+
+    Detection:
+    - If stored hash starts with '$2' and is valid bcrypt, try both verification methods
+    - If verification fails as SHA256->bcrypt, try direct bcrypt (legacy)
+    """
+    if HAS_BCRYPT:
+        # Check if it's a bcrypt hash (starts with $2)
+        if password_hash.startswith('$2'):
+            # First try: verify as SHA256(password) -> bcrypt (new format)
+            try:
+                password_sha256 = hashlib.sha256(password.encode('utf-8')).hexdigest()
+                if bcrypt.checkpw(password_sha256.encode('utf-8'), password_hash.encode('utf-8')):
+                    return True
+            except Exception:
+                pass
+
+            # Second try: verify as original password (legacy format)
+            try:
+                if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
+                    return True
+            except Exception:
+                pass
+
+            return False
+        # Legacy SHA256 format
+        return hashlib.sha256(password.encode()).hexdigest() == password_hash
+    else:
+        # Fallback for SHA256 with salt format: salt$hash
+        if '$' in password_hash:
+            salt, stored_hash = password_hash.split('$', 1)
+            return hashlib.sha256((salt + password).encode()).hexdigest() == stored_hash
+        # Legacy format (plain SHA256 hash) - for backwards compatibility
+        return hashlib.sha256(password.encode()).hexdigest() == password_hash
 
 
 def generate_license_key(license_type: str) -> str:
@@ -320,9 +375,12 @@ async def init_db():
         ) as cursor:
             row = await cursor.fetchone()
             if not row:
+                # For new installations, use the new format: bcrypt(SHA256(password))
+                # This is because frontend now sends SHA256 hashed passwords
+                password_sha256 = hashlib.sha256(DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest()
                 await db.execute(
                     "INSERT INTO admin_users (username, password_hash) VALUES (?, ?)",
-                    (DEFAULT_ADMIN_USERNAME, hash_password(DEFAULT_ADMIN_PASSWORD))
+                    (DEFAULT_ADMIN_USERNAME, hash_password(password_sha256))
                 )
 
         await db.commit()
@@ -693,11 +751,11 @@ async def verify_admin(username: str, password: str) -> Optional[dict]:
     """Verify admin credentials, returns user info if valid"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute(
-            "SELECT id, username FROM admin_users WHERE username = ? AND password_hash = ?",
-            (username, hash_password(password))
+            "SELECT id, username, password_hash FROM admin_users WHERE username = ?",
+            (username,)
         ) as cursor:
             row = await cursor.fetchone()
-            if row:
+            if row and verify_password(password, row[2]):
                 return {"id": row[0], "username": row[1]}
         return None
 

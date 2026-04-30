@@ -7,3 +7,4 @@ PyJWT==2.9.0
 pycryptodome==3.20.0
 gunicorn==21.2.0
 cryptography
+bcrypt>=4.0.0
