@@ -1,13 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { Key, AlertCircle, Eye, EyeOff, User, X } from 'lucide-react'
+import { sha256 } from 'js-sha256'
 
-// SHA256 hash function for password protection
-async function sha256(message: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(message)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-}
+// Note: js-sha256 is used instead of crypto.subtle because crypto.subtle
+// requires a secure context (HTTPS or localhost) and doesn't work over
+// HTTP network connections.
 
 interface LoginPageProps {
   onLogin: () => void
@@ -79,7 +76,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       // Hash password before sending for security
-      const hashedPassword = await sha256(password)
+      const hashedPassword = sha256(password)
 
       const res = await fetch('/api/admin/login', {
         method: 'POST',

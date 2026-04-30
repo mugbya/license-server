@@ -102,8 +102,11 @@ def verify_password(password: str, password_hash: str) -> bool:
                 pass
 
             return False
-        # Legacy SHA256 format
-        return hashlib.sha256(password.encode()).hexdigest() == password_hash
+        # Legacy SHA256 format (plain hash stored directly)
+        try:
+            return hashlib.sha256(password.encode('utf-8')).hexdigest() == password_hash
+        except Exception:
+            return False
     else:
         # Fallback for SHA256 with salt format: salt$hash
         if '$' in password_hash:
