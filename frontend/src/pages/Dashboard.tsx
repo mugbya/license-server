@@ -95,7 +95,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
       if (res.ok) {
         const data = await res.json()
-        // license_key: 短格式（客户输入的序列码）
+        // license_key: 短格式（客户输入的许可证）
         // auth_code: JWT格式（授权码）
         setGeneratedKey(data.auth_code)
         setGeneratedLicenseKey(data.license_key)
@@ -372,7 +372,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         setLicenseKeys(data.data)
       }
     } catch (err) {
-      console.error('加载序列码失败:', err)
+      console.error('加载许可证失败:', err)
     } finally {
       setIsLoadingKeys(false)
     }
@@ -399,7 +399,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const revokeLicenseKey = async (licenseKey: string) => {
-    if (!confirm(`确定要撤销序列码 ${licenseKey} 吗？`)) return
+    if (!confirm(`确定要撤销许可证 ${licenseKey} 吗？`)) return
 
     try {
       const res = await fetch(`/api/license/revoke?license_key=${encodeURIComponent(licenseKey)}`, {
@@ -448,7 +448,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         {/* 一级菜单 */}
         {currentProject && (
           <div style={styles.menuSection}>
-            {/* 序列码管理 */}
+            {/* 许可证管理 */}
             <div style={styles.menuGroup}>
               <button
                 onClick={() => {
@@ -462,7 +462,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 }}
               >
                 <Key size={18} />
-                <span>序列码管理</span>
+                <span>许可证管理</span>
               </button>
 
               {/* 二级菜单 */}
@@ -479,7 +479,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       color: activeTab === 'generate' ? '#667eea' : 'rgba(255,255,255,0.7)'
                     }}
                   >
-                    生成序列码
+                    生成许可证
                   </button>
                   <button
                     onClick={() => {
@@ -493,7 +493,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       color: activeTab === 'key_list' ? '#667eea' : 'rgba(255,255,255,0.7)'
                     }}
                   >
-                    序列码列表
+                    许可证列表
                   </button>
                 </div>
               )}
@@ -545,7 +545,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       color: activeTab === 'keys_stats' ? '#667eea' : 'rgba(255,255,255,0.7)'
                     }}
                   >
-                    序列码统计
+                    许可证统计
                   </button>
                 </div>
               )}
@@ -598,7 +598,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         {currentProject && activeTab === 'generate' && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>生成序列码</h2>
+            <h2 style={styles.pageTitle}>生成许可证</h2>
 
             <div style={styles.card}>
               <div style={styles.cardHeader}>
@@ -657,7 +657,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   style={styles.generateButton}
                 >
                   {isGenerating ? <RefreshCw size={20} className="spin" /> : <Plus size={20} />}
-                  <span>{isGenerating ? '生成中...' : '生成序列码'}</span>
+                  <span>{isGenerating ? '生成中...' : '生成许可证'}</span>
                 </button>
 
                 {error && (
@@ -941,7 +941,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         {activeTab === 'key_list' && currentProject && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>序列码列表</h2>
+            <h2 style={styles.pageTitle}>许可证列表</h2>
 
             {error && <div style={styles.error}>{error}</div>}
 
@@ -954,7 +954,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     <table style={styles.table}>
                       <thead>
                         <tr>
-                          <th style={styles.th}>序列码</th>
+                          <th style={styles.th}>许可证</th>
                           <th style={styles.th}>类型</th>
                           <th style={styles.th}>状态</th>
                           <th style={styles.th}>绑定机器</th>
@@ -1023,7 +1023,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       </tbody>
                     </table>
                   ) : (
-                    <div style={styles.empty}>暂无序列码，点击"生成序列码"创建</div>
+                    <div style={styles.empty}>暂无许可证，点击"生成许可证"创建</div>
                   )}
                 </div>
               </div>
@@ -1033,13 +1033,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         {activeTab === 'keys_stats' && currentProject && (
           <div style={styles.content}>
-            <h2 style={styles.pageTitle}>序列码统计</h2>
+            <h2 style={styles.pageTitle}>许可证统计</h2>
 
             {keysStats && (
               <div style={styles.statsGrid}>
                 <div style={styles.statCard}>
                   <div style={styles.statValue}>{keysStats.total || 0}</div>
-                  <div style={styles.statLabel}>总序列码</div>
+                  <div style={styles.statLabel}>总许可证</div>
                 </div>
                 <div style={styles.statCard}>
                   <div style={styles.statValue}>{keysStats.activated || 0}</div>
@@ -1165,18 +1165,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </div>
       )}
 
-      {/* 序列码详情弹窗 */}
+      {/* 许可证详情弹窗 */}
       {showLicenseDetailModal && licenseDetail && (
         <div style={styles.modalOverlay}>
           <div style={{ ...styles.modal, width: '700px', maxWidth: '90vw' }}>
             <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>序列码详情</h3>
+              <h3 style={styles.modalTitle}>许可证详情</h3>
               <button onClick={() => setShowLicenseDetailModal(false)} style={styles.closeButton}>
                 <X size={20} />
               </button>
             </div>
             <div style={{ padding: '24px' }}>
-              {/* 序列码卡片 */}
+              {/* 许可证卡片 */}
               <div style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 borderRadius: '12px',
@@ -1184,7 +1184,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 color: 'white',
                 marginBottom: '20px'
               }}>
-                <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>序列码</div>
+                <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>许可证</div>
                 <div style={{ fontSize: '20px', fontFamily: 'monospace', fontWeight: 600, letterSpacing: '2px' }}>
                   {licenseDetail.license_key}
                 </div>
