@@ -49,6 +49,9 @@ DEFAULT_ADMIN_PASSWORD = "admin123"
 
 # RSA 私钥 (自动生成)
 LICENSE_PRIVATE_KEY = """{private_pem_str}"""
+
+# RSA 公钥 (自动生成，提供给客户端软件使用)
+LICENSE_PUBLIC_KEY = """{public_pem_str}"""
 '''
 
 # Create backend/private.py
@@ -84,7 +87,8 @@ print("1. 检查并修改 backend/private.py 中的配置:")
 print("   - JWT_SECRET (生产环境必改)")
 print("   - DEFAULT_ADMIN_PASSWORD (首次登录后必改)")
 print("")
-print("2. 将上面的公钥嵌入到客户端软件中")
+print("2. 公钥已保存到 backend/private.py 中的 LICENSE_PUBLIC_KEY")
+print("   客户端软件直接使用该公钥验证授权码")
 print("")
 print("3. 启动服务:")
 print("   cd backend")
