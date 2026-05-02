@@ -22,7 +22,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [generatedKey, setGeneratedKey] = useState('')
   const [generatedLicenseKey, setGeneratedLicenseKey] = useState('')  // 许可证（短格式）
   const [isGenerating, setIsGenerating] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedLicenseKey, setCopiedLicenseKey] = useState(false)
+  const [copiedJwtKey, setCopiedJwtKey] = useState(false)
   const [stats, setStats] = useState<any>(null)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [error, setError] = useState('')
@@ -111,8 +112,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   const copyKey = () => {
     navigator.clipboard.writeText(generatedKey)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCopiedJwtKey(true)
+    setTimeout(() => setCopiedJwtKey(false), 2000)
   }
 
   const decodeLicense = async () => {
@@ -669,9 +670,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       <div style={styles.resultLabel}>许可证（短格式）：</div>
                       <div style={styles.resultKey}>
                         <code style={{ fontSize: '18px', letterSpacing: '1px' }}>{generatedLicenseKey}</code>
-                        <button onClick={() => { navigator.clipboard.writeText(generatedLicenseKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }} style={styles.copyButton}>
-                          <Copy size={18} />
-                          <span>复制</span>
+                        <button onClick={() => { navigator.clipboard.writeText(generatedLicenseKey); setCopiedLicenseKey(true); setTimeout(() => setCopiedLicenseKey(false), 2000); }} style={styles.copyButton}>
+                          {copiedLicenseKey ? <Check size={18} /> : <Copy size={18} />}
+                          <span>{copiedLicenseKey ? '已复制' : '复制'}</span>
                         </button>
                       </div>
                     </div>
@@ -681,8 +682,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       <div style={{ ...styles.resultKey, flexDirection: 'column', alignItems: 'flex-start' }}>
                         <code style={{ fontSize: '13px', wordBreak: 'break-all', lineHeight: '1.6' }}>{generatedKey}</code>
                         <button onClick={copyKey} style={{ ...styles.copyButton, marginTop: '12px' }}>
-                          <Copy size={18} />
-                          <span>复制</span>
+                          {copiedJwtKey ? <Check size={18} /> : <Copy size={18} />}
+                          <span>{copiedJwtKey ? '已复制' : '复制'}</span>
                         </button>
                       </div>
                     </div>
