@@ -975,10 +975,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             <td style={styles.td}>
                               <span style={{
                                 ...styles.badge,
-                                backgroundColor: k.revoked ? '#fee' : k.machine_code ? '#efe' : '#eef',
-                                color: k.revoked ? '#e53e3e' : k.machine_code ? '#38a169' : '#3182ce'
+                                backgroundColor: k.revoked ? '#fee' : k.bound ? '#efe' : '#eef',
+                                color: k.revoked ? '#e53e3e' : k.bound ? '#38a169' : '#3182ce'
                               }}>
-                                {k.revoked ? '已撤销' : k.machine_code ? '已激活' : '未激活'}
+                                {k.revoked ? '已撤销' : k.bound ? '已激活' : '未激活'}
                               </span>
                             </td>
                             <td style={styles.td}>
@@ -1214,8 +1214,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 justifyContent: 'space-around'
               }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: licenseDetail.machine_code ? '#38a169' : '#3182ce' }}>
-                    {licenseDetail.revoked ? '已撤销' : licenseDetail.machine_code ? '已激活' : '未激活'}
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: licenseDetail.bound ? '#38a169' : '#3182ce' }}>
+                    {licenseDetail.revoked ? '已撤销' : licenseDetail.bound ? '已激活' : '未激活'}
                   </div>
                   <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>激活状态</div>
                 </div>
@@ -1238,6 +1238,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 <DetailRow label="绑定机器" value={licenseDetail.machine_code || '-'} mono />
                 <DetailRow label="激活时间" value={licenseDetail.activated_at || '-'} />
                 <DetailRow label="到期时间" value={licenseDetail.expires_at || '-'} />
+                <DetailRow label="绑定状态" value={licenseDetail.bound ? '已绑定' : '已解绑'} />
                 <DetailRow label="创建时间" value={licenseDetail.created_at || '-'} />
               </div>
 

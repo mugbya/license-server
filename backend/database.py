@@ -314,6 +314,7 @@ async def init_db():
                 license_type TEXT NOT NULL,
                 project TEXT NOT NULL DEFAULT 'zupu',
                 machine_code TEXT,
+                bound INTEGER DEFAULT 0,
                 activated_at TEXT,
                 expires_at TEXT,
                 revoked INTEGER DEFAULT 0,
@@ -325,6 +326,12 @@ async def init_db():
         # Add project column if it doesn't exist (for existing databases)
         try:
             await db.execute("ALTER TABLE license_keys ADD COLUMN project TEXT NOT NULL DEFAULT 'zupu'")
+        except:
+            pass
+
+        # Add bound column if it doesn't exist (for existing databases)
+        try:
+            await db.execute("ALTER TABLE license_keys ADD COLUMN bound INTEGER DEFAULT 0")
         except:
             pass
 
@@ -396,7 +403,7 @@ async def init_db():
 async def get_license_by_key(license_key: str) -> Optional[dict]:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute(
-            """SELECT id, license_key, license_type, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+            """SELECT id, license_key, license_type, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
                FROM license_keys WHERE license_key = ?""",
             (license_key,)
         ) as cursor:
@@ -408,11 +415,12 @@ async def get_license_by_key(license_key: str) -> Optional[dict]:
                 "license_key": row[1],
                 "license_type": row[2],
                 "machine_code": row[3],
-                "activated_at": row[4],
-                "expires_at": row[5],
-                "revoked": row[6],
-                "created_at": row[7],
-                "updated_at": row[8]
+                "bound": row[4],
+                "activated_at": row[5],
+                "expires_at": row[6],
+                "revoked": row[7],
+                "created_at": row[8],
+                "updated_at": row[9]
             }
         return None
 
@@ -421,7 +429,7 @@ async def get_trial_by_machine_code(machine_code: str) -> Optional[dict]:
     """Get trial license for a specific machine code"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute(
-            """SELECT id, license_key, license_type, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+            """SELECT id, license_key, license_type, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
                FROM license_keys WHERE machine_code = ? AND license_type = 'trial'""",
             (machine_code,)
         ) as cursor:
@@ -433,11 +441,12 @@ async def get_trial_by_machine_code(machine_code: str) -> Optional[dict]:
                 "license_key": row[1],
                 "license_type": row[2],
                 "machine_code": row[3],
-                "activated_at": row[4],
-                "expires_at": row[5],
-                "revoked": row[6],
-                "created_at": row[7],
-                "updated_at": row[8]
+                "bound": row[4],
+                "activated_at": row[5],
+                "expires_at": row[6],
+                "revoked": row[7],
+                "created_at": row[8],
+                "updated_at": row[9]
             }
         return None
 
@@ -474,9 +483,20 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
         # Generate auth code with RSA encryption
         auth_code = encode_auth_code(license_key, license["license_type"], expires_at, activated_at)
 
+        # Unbind any other licenses bound to this machine (for the same project)
+        # This ensures one machine can only have one active binding at a time
+        project = license.get("project", "zupu")
         await db.execute(
             """UPDATE license_keys
-               SET machine_code = ?, activated_at = ?, expires_at = ?, updated_at = datetime('now')
+               SET bound = 0, machine_code = NULL, updated_at = datetime('now')
+               WHERE machine_code = ? AND project = ? AND bound = 1 AND license_key != ?""",
+            (machine_code, project, license_key)
+        )
+
+        # Bind this license to the machine
+        await db.execute(
+            """UPDATE license_keys
+               SET machine_code = ?, activated_at = ?, expires_at = ?, bound = 1, updated_at = datetime('now')
                WHERE license_key = ?""",
             (machine_code, activated_at, expires_at, license_key)
         )
@@ -502,6 +522,9 @@ async def verify_license(machine_code: str, license_key: str) -> dict:
 
         if license["revoked"]:
             return {"valid": False, "error": "授权码已被撤销"}
+
+        if not license.get("bound"):
+            return {"valid": False, "error": "授权码已解绑"}
 
         if license["machine_code"] != machine_code:
             return {"valid": False, "error": "授权码与机器不匹配"}
@@ -581,14 +604,14 @@ async def get_all_license_keys(project: str = None) -> List[dict]:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         if project:
             async with db.execute(
-                """SELECT id, license_key, license_type, project, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+                """SELECT id, license_key, license_type, project, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
                    FROM license_keys WHERE project = ? ORDER BY created_at DESC""",
                 (project,)
             ) as cursor:
                 rows = await cursor.fetchall()
         else:
             async with db.execute(
-                """SELECT id, license_key, license_type, project, machine_code, activated_at, expires_at, revoked, created_at, updated_at
+                """SELECT id, license_key, license_type, project, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
                    FROM license_keys ORDER BY created_at DESC"""
             ) as cursor:
                 rows = await cursor.fetchall()
@@ -597,12 +620,12 @@ async def get_all_license_keys(project: str = None) -> List[dict]:
         for r in rows:
             license_key = r[1]
             license_type = r[2]
-            expires_at = r[6]
+            expires_at = r[7]
 
             # Generate auth_code based on current state
             # If activated, use actual activation time; otherwise use expires_at from creation
-            if r[5]:  # activated_at exists
-                auth_code = encode_auth_code(license_key, license_type, expires_at, r[5])
+            if r[6]:  # activated_at exists
+                auth_code = encode_auth_code(license_key, license_type, expires_at, r[6])
             else:
                 # Not activated yet - still generate auth_code using expires_at
                 auth_code = encode_auth_code(license_key, license_type, expires_at)
@@ -613,11 +636,12 @@ async def get_all_license_keys(project: str = None) -> List[dict]:
                 "license_type": license_type,
                 "project": r[3],
                 "machine_code": r[4],
-                "activated_at": r[5],
+                "bound": bool(r[5]),
+                "activated_at": r[6],
                 "expires_at": expires_at,
-                "revoked": bool(r[7]),
-                "created_at": r[8],
-                "updated_at": r[9],
+                "revoked": bool(r[8]),
+                "created_at": r[9],
+                "updated_at": r[10],
                 "auth_code": auth_code  # Auth code for display
             })
         return result
@@ -630,7 +654,7 @@ async def get_license_key_stats(project: str = None) -> dict:
         if project:
             async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = ?", (project,)) as cursor:
                 total_keys = (await cursor.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = ? AND machine_code IS NOT NULL", (project,)) as cursor:
+            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = ? AND bound = 1", (project,)) as cursor:
                 activated_keys = (await cursor.fetchone())[0]
             async with db.execute("SELECT COUNT(*) FROM license_keys WHERE project = ? AND revoked = 1", (project,)) as cursor:
                 revoked_keys = (await cursor.fetchone())[0]
@@ -640,7 +664,7 @@ async def get_license_key_stats(project: str = None) -> dict:
         else:
             async with db.execute("SELECT COUNT(*) FROM license_keys") as cursor:
                 total_keys = (await cursor.fetchone())[0]
-            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE machine_code IS NOT NULL") as cursor:
+            async with db.execute("SELECT COUNT(*) FROM license_keys WHERE bound = 1") as cursor:
                 activated_keys = (await cursor.fetchone())[0]
             async with db.execute("SELECT COUNT(*) FROM license_keys WHERE revoked = 1") as cursor:
                 revoked_keys = (await cursor.fetchone())[0]
