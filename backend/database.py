@@ -485,10 +485,11 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
 
         # Unbind any other licenses bound to this machine (for the same project)
         # This ensures one machine can only have one active binding at a time
+        # Only update bound status, keep machine_code for record tracking
         project = license.get("project", "zupu")
         await db.execute(
             """UPDATE license_keys
-               SET bound = 0, machine_code = NULL, updated_at = datetime('now')
+               SET bound = 0, updated_at = datetime('now')
                WHERE machine_code = ? AND project = ? AND bound = 1 AND license_key != ?""",
             (machine_code, project, license_key)
         )
