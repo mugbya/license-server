@@ -93,7 +93,8 @@ async def log_requests(request: Request, call_next):
 
     response = await call_next(request)
 
-    logger.info(f"[{request_id}] Response: {request.method} {request.url.path} | Status: {response.status_code}")
+    log_response = f"[{request_id}] Response: {request.method} {request.url.path} | Status: {response.status_code}"
+    logger.info(log_response)
     return response
 
 # CORS middleware

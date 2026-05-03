@@ -7,6 +7,10 @@ from models import (
 )
 from pydantic import BaseModel
 import database as db
+import logging
+
+router = APIRouter()
+logger = logging.getLogger("license_server")
 
 router = APIRouter()
 
@@ -46,11 +50,12 @@ async def verify(request: Request, req: VerifyLicenseRequest, machine_code: str)
     client_ip = request.client.host if request.client else None
 
     result = await db.verify_license(machine_code, req.license_key)
+    logger.info(f"Verify license: key={req.license_key}, machine={machine_code}, result={result}")
     await db.log_usage(machine_code, "verify", req.license_key, client_ip)
 
     if result.get("valid"):
         return {"success": True, "data": result}
-    raise HTTPException(status_code=403, detail=result.get("error", "Verification failed"))
+    return {"success": False, "error": result.get("error", "Verification failed"), "data": None}
 
 
 @router.post("/report")
