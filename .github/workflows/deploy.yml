@@ -21,11 +21,31 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
+            echo "=== Deployment started at $(date) ==="
+
             # 进入项目目录
             cd /opt/license-server
 
+            # 打印当前 git 状态
+            echo "--- Current git log ---"
+            git log --oneline -5
+
+            echo "--- Remote commits ---"
+            git fetch origin
+            git log --oneline origin/main -5
+
+            echo "--- Local HEAD ---"
+            git rev-parse HEAD
+
+            echo "--- Remote HEAD ---"
+            git rev-parse origin/main
+
             # 拉取最新代码
+            echo "--- Pulling latest code ---"
             git pull origin main
+
+            echo "--- After pull git log ---"
+            git log --oneline -5
 
             # 构建前端
             cd /opt/license-server/frontend
