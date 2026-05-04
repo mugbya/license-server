@@ -314,8 +314,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
 
     try {
-      const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects'
+      const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects/save'
       const method = editingProject ? 'PUT' : 'POST'
+      console.log(url, method, projectForm)
       const res = await fetch(url, {
         method,
         headers: {

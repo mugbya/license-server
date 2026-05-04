@@ -5,7 +5,7 @@ import database as db
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def list_projects():
     """Get all projects"""
     projects = await db.get_all_projects()
@@ -21,7 +21,7 @@ async def get_project(project_id: int):
     return {"success": True, "data": project}
 
 
-@router.post("/")
+@router.post("/save")
 async def create_project(req: CreateProjectRequest):
     """Create a new project"""
     result = await db.create_project(req.name, req.code)
