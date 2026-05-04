@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header
 from models import (
     ActivateLicenseRequest,
     VerifyLicenseRequest,
@@ -6,6 +6,7 @@ from models import (
     BatchReportRequest
 )
 from pydantic import BaseModel
+from dependencies import verify_token
 import database as db
 import logging
 
@@ -67,34 +68,32 @@ async def report_usage(req: BatchReportRequest):
 
 
 @router.get("/stats")
-async def get_stats(project: str = None):
+async def get_stats(project: str = None, authorization: str = Header(None)):
     """Get usage statistics (admin only)"""
+    await verify_token(authorization)
     stats = await db.get_usage_stats(project)
     return {"success": True, "data": stats}
 
 
 @router.post("/create_key")
-async def create_key(req: CreateLicenseKeyRequest):
-    """Create a new license key (admin only).
-
-    Generates a short license key (GLY-XXXX-XXXX-XXXX-XXXX) and stores it in database.
-    Also generates the auth_code for display.
-    The customer receives this short code via email.
-    """
+async def create_key(req: CreateLicenseKeyRequest, authorization: str = Header(None)):
+    """Create a new license key (admin only)."""
+    await verify_token(authorization)
     result = await db.create_license_key(req.license_type, req.project, req.expires_at)
     if result.get("success"):
         return {
             "success": True,
-            "license_key": result.get("license_key"),  # Short format for email
-            "auth_code": result.get("auth_code"),  # Auth code for display
+            "license_key": result.get("license_key"),
+            "auth_code": result.get("auth_code"),
             "expires_at": result.get("expires_at")
         }
     raise HTTPException(status_code=400, detail=result.get("error", "Failed to create key"))
 
 
 @router.post("/revoke")
-async def revoke(license_key: str):
+async def revoke(license_key: str, authorization: str = Header(None)):
     """Revoke a license key by short license code"""
+    await verify_token(authorization)
     result = await db.revoke_license(license_key)
     if result.get("success"):
         return {"success": True}
@@ -102,28 +101,27 @@ async def revoke(license_key: str):
 
 
 @router.get("/keys")
-async def list_keys(project: str = None):
+async def list_keys(project: str = None, authorization: str = Header(None)):
     """List all license keys (admin only)"""
+    await verify_token(authorization)
     keys = await db.get_all_license_keys(project)
     return {"success": True, "data": keys}
 
 
 @router.get("/keys/stats")
-async def get_keys_stats(project: str = None):
+async def get_keys_stats(project: str = None, authorization: str = Header(None)):
     """Get license key statistics (admin only)"""
+    await verify_token(authorization)
     stats = await db.get_license_key_stats(project)
     return {"success": True, "data": stats}
 
 
 @router.post("/decode")
-async def decode_license(req: DecodeLicenseRequest):
-    """Decode auth code to get exp/jti/start_at (admin only).
-
-    This decodes the RSA encrypted auth code to view its contents.
-    """
+async def decode_license(req: DecodeLicenseRequest, authorization: str = Header(None)):
+    """Decode auth code to get exp/jti/start_at (admin only)."""
+    await verify_token(authorization)
     result = db.decode_auth_code(req.license_code)
     if result:
-        # Handle permanent license (exp = 0)
         if result["exp"] == 0:
             return {"success": True, "data": {"exp": 0, "is_permanent": True}}
         return {"success": True, "data": {"exp": result["exp"], "start_at": result["start_at"], "is_permanent": False}}
