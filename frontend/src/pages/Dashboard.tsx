@@ -533,58 +533,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               )}
             </div>
 
-            {/* 数据统计 */}
-            <div style={styles.menuGroup}>
-              <button
-                onClick={() => {
-                  setActiveMenu('stats')
-                  setActiveTab('usage_stats')
-                }}
-                style={{
-                  ...styles.menuButton,
-                  backgroundColor: activeMenu === 'stats' ? 'rgba(255,255,255,0.15)' : 'transparent',
-                  borderLeftColor: activeMenu === 'stats' ? '#667eea' : 'transparent'
-                }}
-              >
-                <BarChart3 size={18} />
-                <span>数据统计</span>
-              </button>
-
-              {/* 二级菜单 */}
-              {activeMenu === 'stats' && (
-                <div style={styles.subMenu}>
-                  <button
-                    onClick={() => {
-                      setActiveMenu('stats')
-                      setActiveTab('usage_stats')
-                      loadStats()
-                    }}
-                    style={{
-                      ...styles.subMenuItem,
-                      backgroundColor: activeTab === 'usage_stats' ? 'white' : 'transparent',
-                      color: activeTab === 'usage_stats' ? '#667eea' : 'rgba(255,255,255,0.7)'
-                    }}
-                  >
-                    使用统计
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMenu('stats')
-                      setActiveTab('keys_stats')
-                      loadKeysStats()
-                    }}
-                    style={{
-                      ...styles.subMenuItem,
-                      backgroundColor: activeTab === 'keys_stats' ? 'white' : 'transparent',
-                      color: activeTab === 'keys_stats' ? '#667eea' : 'rgba(255,255,255,0.7)'
-                    }}
-                  >
-                    许可证统计
-                  </button>
-                </div>
-              )}
-            </div>
-
             {/* 软件使用 */}
             <div style={styles.menuGroup}>
               <button
@@ -632,6 +580,58 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     }}
                   >
                     使用明细
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 数据统计 */}
+            <div style={styles.menuGroup}>
+              <button
+                onClick={() => {
+                  setActiveMenu('stats')
+                  setActiveTab('usage_stats')
+                }}
+                style={{
+                  ...styles.menuButton,
+                  backgroundColor: activeMenu === 'stats' ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  borderLeftColor: activeMenu === 'stats' ? '#667eea' : 'transparent'
+                }}
+              >
+                <BarChart3 size={18} />
+                <span>数据统计</span>
+              </button>
+
+              {/* 二级菜单 */}
+              {activeMenu === 'stats' && (
+                <div style={styles.subMenu}>
+                  <button
+                    onClick={() => {
+                      setActiveMenu('stats')
+                      setActiveTab('usage_stats')
+                      loadStats()
+                    }}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'usage_stats' ? 'white' : 'transparent',
+                      color: activeTab === 'usage_stats' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    使用统计
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveMenu('stats')
+                      setActiveTab('keys_stats')
+                      loadKeysStats()
+                    }}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'keys_stats' ? 'white' : 'transparent',
+                      color: activeTab === 'keys_stats' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    许可证统计
                   </button>
                 </div>
               )}
