@@ -18,8 +18,8 @@ interface Project {
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'generate' | 'key_list' | 'usage_stats' | 'keys_stats' | 'projects'>('generate')
-  const [activeMenu, setActiveMenu] = useState<'license' | 'stats'>('license')
+  const [activeTab, setActiveTab] = useState<'generate' | 'key_list' | 'usage_stats' | 'keys_stats' | 'projects' | 'usage_list' | 'usage_detail'>('generate')
+  const [activeMenu, setActiveMenu] = useState<'license' | 'stats' | 'usage'>('license')
   const [licenseType, setLicenseType] = useState<'year' | 'permanent' | 'custom'>('year')
   const [customExpiry, setCustomExpiry] = useState('')
   const [generatedKey, setGeneratedKey] = useState('')
@@ -57,6 +57,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [projectError, setProjectError] = useState('')
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const projectsLoaded = useRef(false)
+
+  // Usage detail records
+  const [usageDetail, setUsageDetail] = useState<any[]>([])
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
   // 加载项目列表 (防止 StrictMode 下重复调用)
   useEffect(() => {
@@ -214,6 +218,26 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       setError('网络错误')
     } finally {
       setIsLoadingStats(false)
+    }
+  }
+
+  const loadUsageDetail = async () => {
+    setIsLoadingDetail(true)
+    try {
+      const url = currentProject ? `/api/license/usage/detail?project=${currentProject.code}` : '/api/license/usage/detail'
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUsageDetail(data.data)
+      }
+    } catch (err) {
+      console.error('获取使用明细失败:', err)
+    } finally {
+      setIsLoadingDetail(false)
     }
   }
 
@@ -550,6 +574,58 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     }}
                   >
                     许可证统计
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 软件使用 */}
+            <div style={styles.menuGroup}>
+              <button
+                onClick={() => {
+                  setActiveMenu('usage')
+                  setActiveTab('usage_list')
+                }}
+                style={{
+                  ...styles.menuButton,
+                  backgroundColor: activeMenu === 'usage' ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  borderLeftColor: activeMenu === 'usage' ? '#667eea' : 'transparent'
+                }}
+              >
+                <BarChart3 size={18} />
+                <span>软件使用</span>
+              </button>
+
+              {/* 二级菜单 */}
+              {activeMenu === 'usage' && (
+                <div style={styles.subMenu}>
+                  <button
+                    onClick={() => {
+                      setActiveMenu('usage')
+                      setActiveTab('usage_list')
+                      loadStats()
+                    }}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'usage_list' ? 'white' : 'transparent',
+                      color: activeTab === 'usage_list' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    使用汇总
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveMenu('usage')
+                      setActiveTab('usage_detail')
+                      loadUsageDetail()
+                    }}
+                    style={{
+                      ...styles.subMenuItem,
+                      backgroundColor: activeTab === 'usage_detail' ? 'white' : 'transparent',
+                      color: activeTab === 'usage_detail' ? '#667eea' : 'rgba(255,255,255,0.7)'
+                    }}
+                  >
+                    使用明细
                   </button>
                 </div>
               )}
@@ -999,6 +1075,96 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             ) : (
               <div style={styles.empty}>点击"使用统计"加载数据</div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'usage_list' && currentProject && (
+          <div style={styles.content}>
+            <div style={styles.contentHeader}>
+              <h2 style={styles.pageTitle}>使用汇总</h2>
+            </div>
+            <div style={styles.card}>
+              <div style={styles.cardContent}>
+                {stats?.recent_records?.length > 0 ? (
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>机器码</th>
+                        <th style={styles.th}>IP地址</th>
+                        <th style={styles.th}>国家</th>
+                        <th style={styles.th}>省份</th>
+                        <th style={styles.th}>城市</th>
+                        <th style={styles.th}>操作系统</th>
+                        <th style={styles.th}>系统版本</th>
+                        <th style={styles.th}>更新时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.recent_records.slice(0, 50).map((record: any, index: number) => (
+                        <tr key={index} style={styles.tr}>
+                          <td style={styles.td}>{record.machine_code}</td>
+                          <td style={styles.td}>{record.public_ip}</td>
+                          <td style={styles.td}>{record.country}</td>
+                          <td style={styles.td}>{record.region}</td>
+                          <td style={styles.td}>{record.city}</td>
+                          <td style={styles.td}>{record.os_name || '-'}</td>
+                          <td style={styles.td}>{record.os_version || '-'}</td>
+                          <td style={styles.td}>{record.updated_at}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={styles.empty}>暂无数据</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'usage_detail' && currentProject && (
+          <div style={styles.content}>
+            <div style={styles.contentHeader}>
+              <h2 style={styles.pageTitle}>使用明细</h2>
+            </div>
+            <div style={styles.card}>
+              <div style={styles.cardContent}>
+                {isLoadingDetail ? (
+                  <div style={styles.loading}>加载中...</div>
+                ) : usageDetail.length > 0 ? (
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>机器码</th>
+                        <th style={styles.th}>IP地址</th>
+                        <th style={styles.th}>国家</th>
+                        <th style={styles.th}>省份</th>
+                        <th style={styles.th}>城市</th>
+                        <th style={styles.th}>操作系统</th>
+                        <th style={styles.th}>系统版本</th>
+                        <th style={styles.th}>变更时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usageDetail.map((record: any, index: number) => (
+                        <tr key={index} style={styles.tr}>
+                          <td style={styles.td}>{record.machine_code}</td>
+                          <td style={styles.td}>{record.public_ip}</td>
+                          <td style={styles.td}>{record.country}</td>
+                          <td style={styles.td}>{record.region}</td>
+                          <td style={styles.td}>{record.city}</td>
+                          <td style={styles.td}>{record.os_name || '-'}</td>
+                          <td style={styles.td}>{record.os_version || '-'}</td>
+                          <td style={styles.td}>{record.changed_at}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={styles.empty}>暂无数据</div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

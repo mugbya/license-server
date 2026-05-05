@@ -116,6 +116,14 @@ async def get_keys_stats(project: str = None, authorization: str = Header(None))
     return {"success": True, "data": stats}
 
 
+@router.get("/usage/detail")
+async def get_usage_detail(project: str = None, authorization: str = Header(None)):
+    """Get usage detail records (admin only)"""
+    await verify_token(authorization)
+    records = await db.get_usage_detail_records(project)
+    return {"success": True, "data": records}
+
+
 @router.post("/decode")
 async def decode_license(req: DecodeLicenseRequest, authorization: str = Header(None)):
     """Decode auth code to get exp/jti/start_at (admin only)."""

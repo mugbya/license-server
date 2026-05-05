@@ -374,6 +374,8 @@ async def init_db():
                 country TEXT,
                 region TEXT,
                 city TEXT,
+                os_name TEXT,
+                os_version TEXT,
                 changed_at TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -389,6 +391,16 @@ async def init_db():
             pass
         try:
             await db.execute("ALTER TABLE usage_records ADD COLUMN os_version TEXT")
+        except:
+            pass
+
+        # Add columns to usage_detail for existing databases
+        try:
+            await db.execute("ALTER TABLE usage_detail ADD COLUMN os_name TEXT")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE usage_detail ADD COLUMN os_version TEXT")
         except:
             pass
 
@@ -760,9 +772,9 @@ async def save_usage_reports(reports: List[dict]) -> dict:
                     (project, machine_code, public_ip, country, region, city, app_version, os_name, os_version)
                 )
                 await db.execute(
-                    """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (project, machine_code, public_ip, country, region, city)
+                    """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city, os_name, os_version)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (project, machine_code, public_ip, country, region, city, os_name, os_version)
                 )
                 count += 1
             else:
@@ -780,9 +792,9 @@ async def save_usage_reports(reports: List[dict]) -> dict:
                         (public_ip, country, region, city, app_version, os_name, os_version, machine_code)
                     )
                     await db.execute(
-                        """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city)
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                        (project, machine_code, public_ip, country, region, city)
+                        """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city, os_name, os_version)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (project, machine_code, public_ip, country, region, city, os_name, os_version)
                     )
                     count += 1
                 # else: same record, do nothing
@@ -826,7 +838,7 @@ async def get_usage_stats(project: str = None) -> dict:
             ) as cursor:
                 by_city_raw = await cursor.fetchall()
             async with db.execute(
-                """SELECT machine_code, public_ip, country, region, city, updated_at
+                """SELECT machine_code, public_ip, country, region, city, app_version, os_name, os_version, updated_at
                    FROM usage_records WHERE project = ? ORDER BY updated_at DESC LIMIT 50""",
                 (project,)
             ) as cursor:
@@ -850,7 +862,8 @@ async def get_usage_stats(project: str = None) -> dict:
             ) as cursor:
                 by_city_raw = await cursor.fetchall()
             async with db.execute(
-                "SELECT machine_code, public_ip, country, region, city, updated_at FROM usage_records ORDER BY updated_at DESC LIMIT 50"
+                """SELECT machine_code, public_ip, country, region, city, app_version, os_name, os_version, updated_at
+                   FROM usage_records ORDER BY updated_at DESC LIMIT 50"""
             ) as cursor:
                 recent_records = await cursor.fetchall()
 
@@ -909,11 +922,47 @@ async def get_usage_stats(project: str = None) -> dict:
                     "country": r[2],
                     "region": r[3],
                     "city": r[4],
-                    "updated_at": r[5]
+                    "app_version": r[5],
+                    "os_name": r[6],
+                    "os_version": r[7],
+                    "updated_at": r[8]
                 }
                 for r in recent_records
             ]
         }
+
+
+async def get_usage_detail_records(project: str = None) -> List[dict]:
+    """Get usage detail records, optionally filtered by project"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        if project:
+            async with db.execute(
+                """SELECT project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
+                   FROM usage_detail WHERE project = ? ORDER BY changed_at DESC LIMIT 200""",
+                (project,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+        else:
+            async with db.execute(
+                """SELECT project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
+                   FROM usage_detail ORDER BY changed_at DESC LIMIT 200"""
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        return [
+            {
+                "project": r[0],
+                "machine_code": r[1],
+                "public_ip": r[2],
+                "country": r[3],
+                "region": r[4],
+                "city": r[5],
+                "os_name": r[6],
+                "os_version": r[7],
+                "changed_at": r[8]
+            }
+            for r in rows
+        ]
 
 
 async def verify_admin(username: str, password: str) -> Optional[dict]:
