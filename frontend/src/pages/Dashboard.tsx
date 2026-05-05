@@ -897,7 +897,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               cx="50%"
                               cy="50%"
                               outerRadius={80}
-                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                              label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                             >
                               {stats.by_country.map((_: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -929,7 +929,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               cx="50%"
                               cy="50%"
                               outerRadius={80}
-                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                              label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                             >
                               {stats.by_region.map((_: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -961,7 +961,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               cx="50%"
                               cy="50%"
                               outerRadius={80}
-                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                              label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                             >
                               {stats.by_city.map((_: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -996,7 +996,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               cx="50%"
                               cy="50%"
                               outerRadius={80}
-                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                              label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                             >
                               {stats.by_app_version.map((_: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -1028,7 +1028,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               cx="50%"
                               cy="50%"
                               outerRadius={80}
-                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                              label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
                             >
                               {stats.by_os.map((_: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
