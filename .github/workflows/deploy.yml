@@ -3,7 +3,7 @@ name: Deploy to Server
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   deploy:
@@ -18,31 +18,20 @@ jobs:
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
+            set -e
+
             echo "=== Deployment started at $(date) ==="
 
             # 进入项目目录
             cd /opt/license-server
 
-            # 打印当前 git 状态
-            echo "--- Current git log ---"
-            git log --oneline -5
-
-            echo "--- Remote commits ---"
-            git fetch origin
-            git log --oneline origin/main -5
-
-            echo "--- Local HEAD ---"
-            git rev-parse HEAD
-
-            echo "--- Remote HEAD ---"
-            git rev-parse origin/main
-
             # 拉取最新代码
             echo "--- Pulling latest code ---"
-            git pull origin main
+            git fetch origin
+            git reset --hard origin/main
 
             echo "--- After pull git log ---"
             git log --oneline -5

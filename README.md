@@ -208,13 +208,27 @@ sudo certbot --nginx -d your-domain.com
 |------------|------|------|
 | `SERVER_HOST` | 服务器 IP | `123.45.67.89` |
 | `SERVER_USER` | SSH 用户名 | `ubuntu` |
-| `SERVER_PASSWORD` | SSH 密码或密钥 | `your-password` |
+| `SERVER_SSH_KEY` | SSH 私钥 | `-----BEGIN OPENSSH PRIVATE KEY-----\n...` |
 | `SERVER_PORT` | SSH 端口 | `22` |
 
 ### 2. 服务器准备
 
+**生成 SSH 密钥**：
+
 ```bash
-# 安装基础软件 (CentOS/Rocky)
+# 在服务器上生成 SSH 密钥
+ssh-keygen -t ed25519 -C "github-actions" -f ~/.ssh/github_actions_key
+
+# 添加公钥到 authorized_keys
+cat ~/.ssh/github_actions_key.pub >> ~/.ssh/authorized_keys
+
+# 查看私钥内容，复制到 GitHub Secrets
+cat ~/.ssh/github_actions_key
+```
+
+**安装基础软件 (CentOS/Rocky)**：
+
+```bash
 sudo yum install -y git
 
 # 安装 Node.js 18.x (用于构建前端)
@@ -228,13 +242,20 @@ sudo mkdir -p /opt/license-server
 # 初始化 git 仓库（如果还没有）
 cd /opt/license-server
 git init
-git remote add origin https://github.com/你的用户名/license-server.git
+git remote add origin git@github.com:你的用户名/license-server.git
 git pull origin main
 
 # 手动运行一次部署脚本
 cd deploy/systemd
 chmod +x setup.sh manage.sh
 sudo ./setup.sh
+```
+
+**注意**：确保服务器 SSH 配置允许密钥认证，编辑 `/etc/ssh/sshd_config`：
+
+```bash
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
 ```
 
 ### 3. 推送代码自动部署
