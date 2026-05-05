@@ -62,6 +62,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [usageDetail, setUsageDetail] = useState<any[]>([])
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
+  // Usage list filter
+  const [usageListFilter, setUsageListFilter] = useState({ machine_code: '', ip: '', country: '', region: '', city: '' })
+
+  // Usage detail filter
+  const [usageDetailFilter, setUsageDetailFilter] = useState({ machine_code: '', ip: '', country: '', region: '', city: '' })
+
   // 加载项目列表 (防止 StrictMode 下重复调用)
   useEffect(() => {
     if (projectsLoaded.current) return
@@ -726,7 +732,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       type="datetime-local"
                       value={customExpiry}
                       onChange={(e) => setCustomExpiry(e.target.value)}
-                      style={styles.input}
+                      style={styles.filterInput}
                     />
                   </div>
                 )}
@@ -1083,7 +1089,70 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             <div style={styles.contentHeader}>
               <h2 style={styles.pageTitle}>使用汇总</h2>
             </div>
-            <div style={styles.card}>
+            <div style={{ ...styles.card, marginBottom: 24 }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #eee' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>数据筛选</span>
+                  <button
+                    onClick={() => setUsageListFilter({ machine_code: '', ip: '', country: '', region: '', city: '' })}
+                    style={{ fontSize: 13, color: '#667eea', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+                  >
+                    重置
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>机器码</label>
+                    <input
+                      type="text"
+                      placeholder="搜索机器码..."
+                      value={usageListFilter.machine_code}
+                      onChange={(e) => setUsageListFilter({ ...usageListFilter, machine_code: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>IP地址</label>
+                    <input
+                      type="text"
+                      placeholder="搜索IP地址..."
+                      value={usageListFilter.ip}
+                      onChange={(e) => setUsageListFilter({ ...usageListFilter, ip: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>国家</label>
+                    <input
+                      type="text"
+                      placeholder="搜索国家..."
+                      value={usageListFilter.country}
+                      onChange={(e) => setUsageListFilter({ ...usageListFilter, country: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>省份</label>
+                    <input
+                      type="text"
+                      placeholder="搜索省份..."
+                      value={usageListFilter.region}
+                      onChange={(e) => setUsageListFilter({ ...usageListFilter, region: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>城市</label>
+                    <input
+                      type="text"
+                      placeholder="搜索城市..."
+                      value={usageListFilter.city}
+                      onChange={(e) => setUsageListFilter({ ...usageListFilter, city: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                </div>
+              </div>
               <div style={styles.cardContent}>
                 {stats?.recent_records?.length > 0 ? (
                   <table style={styles.table}>
@@ -1100,7 +1169,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {stats.recent_records.slice(0, 50).map((record: any, index: number) => (
+                      {stats.recent_records
+                        .filter((r: any) => {
+                          const f = usageListFilter
+                          return (!f.machine_code || r.machine_code.includes(f.machine_code)) &&
+                                 (!f.ip || r.public_ip.includes(f.ip)) &&
+                                 (!f.country || (r.country && r.country.includes(f.country))) &&
+                                 (!f.region || (r.region && r.region.includes(f.region))) &&
+                                 (!f.city || (r.city && r.city.includes(f.city)))
+                        })
+                        .slice(0, 50).map((record: any, index: number) => (
                         <tr key={index} style={styles.tr}>
                           <td style={styles.td}>{record.machine_code}</td>
                           <td style={styles.td}>{record.public_ip}</td>
@@ -1127,7 +1205,70 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             <div style={styles.contentHeader}>
               <h2 style={styles.pageTitle}>使用明细</h2>
             </div>
-            <div style={styles.card}>
+            <div style={{ ...styles.card, marginBottom: 24 }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #eee' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>数据筛选</span>
+                  <button
+                    onClick={() => setUsageDetailFilter({ machine_code: '', ip: '', country: '', region: '', city: '' })}
+                    style={{ fontSize: 13, color: '#667eea', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+                  >
+                    重置
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>机器码</label>
+                    <input
+                      type="text"
+                      placeholder="搜索机器码..."
+                      value={usageDetailFilter.machine_code}
+                      onChange={(e) => setUsageDetailFilter({ ...usageDetailFilter, machine_code: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>IP地址</label>
+                    <input
+                      type="text"
+                      placeholder="搜索IP地址..."
+                      value={usageDetailFilter.ip}
+                      onChange={(e) => setUsageDetailFilter({ ...usageDetailFilter, ip: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>国家</label>
+                    <input
+                      type="text"
+                      placeholder="搜索国家..."
+                      value={usageDetailFilter.country}
+                      onChange={(e) => setUsageDetailFilter({ ...usageDetailFilter, country: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>省份</label>
+                    <input
+                      type="text"
+                      placeholder="搜索省份..."
+                      value={usageDetailFilter.region}
+                      onChange={(e) => setUsageDetailFilter({ ...usageDetailFilter, region: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, color: '#666', marginBottom: 6 }}>城市</label>
+                    <input
+                      type="text"
+                      placeholder="搜索城市..."
+                      value={usageDetailFilter.city}
+                      onChange={(e) => setUsageDetailFilter({ ...usageDetailFilter, city: e.target.value })}
+                      style={styles.filterInput}
+                    />
+                  </div>
+                </div>
+              </div>
               <div style={styles.cardContent}>
                 {isLoadingDetail ? (
                   <div style={styles.loading}>加载中...</div>
@@ -1146,7 +1287,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {usageDetail.map((record: any, index: number) => (
+                      {usageDetail
+                        .filter((r: any) => {
+                          const f = usageDetailFilter
+                          return (!f.machine_code || r.machine_code.includes(f.machine_code)) &&
+                                 (!f.ip || r.public_ip.includes(f.ip)) &&
+                                 (!f.country || (r.country && r.country.includes(f.country))) &&
+                                 (!f.region || (r.region && r.region.includes(f.region))) &&
+                                 (!f.city || (r.city && r.city.includes(f.city)))
+                        })
+                        .map((record: any, index: number) => (
                         <tr key={index} style={styles.tr}>
                           <td style={styles.td}>{record.machine_code}</td>
                           <td style={styles.td}>{record.public_ip}</td>
@@ -1779,6 +1929,17 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     fontSize: '18px',
     backgroundColor: '#fafafa'
+  },
+  filterInput: {
+    padding: '10px 14px',
+    border: '1px solid #e5e5e5',
+    borderRadius: '6px',
+    fontSize: '14px',
+    backgroundColor: '#fff',
+    width: '100%',
+    boxSizing: 'border-box',
+    outline: 'none',
+    transition: 'border-color 0.2s'
   },
   typeSelector: {
     display: 'flex',
