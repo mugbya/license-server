@@ -357,6 +357,9 @@ async def init_db():
                 country TEXT,
                 region TEXT,
                 city TEXT,
+                app_version TEXT,
+                os_name TEXT,
+                os_version TEXT,
                 updated_at TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -374,6 +377,20 @@ async def init_db():
                 changed_at TEXT DEFAULT (datetime('now'))
             )
         """)
+
+        # Add columns to usage_records for existing databases
+        try:
+            await db.execute("ALTER TABLE usage_records ADD COLUMN app_version TEXT")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE usage_records ADD COLUMN os_name TEXT")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE usage_records ADD COLUMN os_version TEXT")
+        except:
+            pass
 
         # Add project column if it doesn't exist (for existing databases)
         try:
@@ -721,6 +738,9 @@ async def save_usage_reports(reports: List[dict]) -> dict:
             country = report.get("country", "")
             region = report.get("region", "")
             city = report.get("city", "")
+            app_version = report.get("app_version", "")
+            os_name = report.get("os_name", "")
+            os_version = report.get("os_version", "")
 
             if not machine_code:
                 continue
@@ -735,9 +755,9 @@ async def save_usage_reports(reports: List[dict]) -> dict:
             if not existing:
                 # First report: insert into both tables
                 await db.execute(
-                    """INSERT INTO usage_records (project, machine_code, public_ip, country, region, city)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (project, machine_code, public_ip, country, region, city)
+                    """INSERT INTO usage_records (project, machine_code, public_ip, country, region, city, app_version, os_name, os_version)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (project, machine_code, public_ip, country, region, city, app_version, os_name, os_version)
                 )
                 await db.execute(
                     """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city)
@@ -755,9 +775,9 @@ async def save_usage_reports(reports: List[dict]) -> dict:
                 if ip_changed or location_changed:
                     # Update usage_records + insert usage_detail
                     await db.execute(
-                        """UPDATE usage_records SET public_ip = ?, country = ?, region = ?, city = ?, updated_at = datetime('now')
+                        """UPDATE usage_records SET public_ip = ?, country = ?, region = ?, city = ?, app_version = ?, os_name = ?, os_version = ?, updated_at = datetime('now')
                            WHERE machine_code = ?""",
-                        (public_ip, country, region, city, machine_code)
+                        (public_ip, country, region, city, app_version, os_name, os_version, machine_code)
                     )
                     await db.execute(
                         """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city)
@@ -838,11 +858,50 @@ async def get_usage_stats(project: str = None) -> dict:
         by_region = aggregate_top10(by_region_raw)
         by_city = aggregate_top10(by_city_raw)
 
+        # Statistics by app_version, os (combined name + version)
+        if project:
+            async with db.execute(
+                """SELECT app_version, COUNT(*) as count FROM usage_records WHERE project = ? AND app_version != ''
+                   GROUP BY app_version ORDER BY count DESC LIMIT 11""",
+                (project,)
+            ) as cursor:
+                by_app_version_raw = await cursor.fetchall()
+            async with db.execute(
+                """SELECT CASE
+                      WHEN os_version IS NOT NULL AND os_version != '' THEN os_name || ' ' || os_version
+                      ELSE os_name
+                   END as os_full, COUNT(*) as count
+                   FROM usage_records WHERE project = ? AND os_name != ''
+                   GROUP BY os_full ORDER BY count DESC LIMIT 11""",
+                (project,)
+            ) as cursor:
+                by_os_raw = await cursor.fetchall()
+        else:
+            async with db.execute(
+                """SELECT app_version, COUNT(*) as count FROM usage_records WHERE app_version != ''
+                   GROUP BY app_version ORDER BY count DESC LIMIT 11"""
+            ) as cursor:
+                by_app_version_raw = await cursor.fetchall()
+            async with db.execute(
+                """SELECT CASE
+                      WHEN os_version IS NOT NULL AND os_version != '' THEN os_name || ' ' || os_version
+                      ELSE os_name
+                   END as os_full, COUNT(*) as count
+                   FROM usage_records WHERE os_name != ''
+                   GROUP BY os_full ORDER BY count DESC LIMIT 11"""
+            ) as cursor:
+                by_os_raw = await cursor.fetchall()
+
+        by_app_version = aggregate_top10(by_app_version_raw)
+        by_os = aggregate_top10(by_os_raw)
+
         return {
             "total_machines": total_machines,
             "by_country": [{"name": r[0], "value": r[1]} for r in by_country],
             "by_region": [{"name": r[0], "value": r[1]} for r in by_region],
             "by_city": [{"name": r[0], "value": r[1]} for r in by_city],
+            "by_app_version": [{"name": r[0], "value": r[1]} for r in by_app_version],
+            "by_os": [{"name": r[0], "value": r[1]} for r in by_os],
             "recent_records": [
                 {
                     "machine_code": r[0],

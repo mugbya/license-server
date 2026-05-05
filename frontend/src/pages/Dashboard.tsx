@@ -797,99 +797,169 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   </div>
                 </div>
 
-                {/* 按国家统计 */}
-                <div style={styles.card}>
-                  <div style={styles.cardHeader}>
-                    <h3 style={styles.cardTitle}>按国家/地区统计</h3>
+                {/* 地点统计 - 同一行 */}
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  {/* 按国家统计 */}
+                  <div style={{ ...styles.card, flex: 1, minWidth: 300 }}>
+                    <div style={styles.cardHeader}>
+                      <h3 style={styles.cardTitle}>按国家/地区统计</h3>
+                    </div>
+                    <div style={{ height: 250 }}>
+                      {stats.by_country?.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={stats.by_country}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                            >
+                              {stats.by_country.map((_: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div style={styles.empty}>暂无数据</div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ height: 300, minWidth: 300 }}>
-                    {stats.by_country?.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={stats.by_country}
-                            dataKey="count"
-                            nameKey="country"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                          >
-                            {stats.by_country.map((_: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div style={styles.empty}>暂无数据</div>
-                    )}
+
+                  {/* 按省份统计 */}
+                  <div style={{ ...styles.card, flex: 1, minWidth: 300 }}>
+                    <div style={styles.cardHeader}>
+                      <h3 style={styles.cardTitle}>按省份统计</h3>
+                    </div>
+                    <div style={{ height: 250 }}>
+                      {stats.by_region?.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={stats.by_region}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                            >
+                              {stats.by_region.map((_: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div style={styles.empty}>暂无数据</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 按城市统计 */}
+                  <div style={{ ...styles.card, flex: 1, minWidth: 300 }}>
+                    <div style={styles.cardHeader}>
+                      <h3 style={styles.cardTitle}>按城市统计</h3>
+                    </div>
+                    <div style={{ height: 250 }}>
+                      {stats.by_city?.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={stats.by_city}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                            >
+                              {stats.by_city.map((_: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div style={styles.empty}>暂无数据</div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* 按省份统计 */}
-                <div style={styles.card}>
-                  <div style={styles.cardHeader}>
-                    <h3 style={styles.cardTitle}>按省份统计</h3>
+                {/* 系统统计 - 同一行 */}
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  {/* 按版本统计 */}
+                  <div style={{ ...styles.card, flex: 1, minWidth: 300 }}>
+                    <div style={styles.cardHeader}>
+                      <h3 style={styles.cardTitle}>按版本统计</h3>
+                    </div>
+                    <div style={{ height: 250 }}>
+                      {stats.by_app_version?.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={stats.by_app_version}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                            >
+                              {stats.by_app_version.map((_: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div style={styles.empty}>暂无数据</div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ height: 300, minWidth: 300 }}>
-                    {stats.by_region?.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={stats.by_region}
-                            dataKey="count"
-                            nameKey="region"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                          >
-                            {stats.by_region.map((_: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div style={styles.empty}>暂无数据</div>
-                    )}
-                  </div>
-                </div>
 
-                {/* 按城市统计 */}
-                <div style={styles.card}>
-                  <div style={styles.cardHeader}>
-                    <h3 style={styles.cardTitle}>按城市统计</h3>
-                  </div>
-                  <div style={{ height: 300, minWidth: 300 }}>
-                    {stats.by_city?.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={stats.by_city}
-                            dataKey="count"
-                            nameKey="city"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                          >
-                            {stats.by_city.map((_: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div style={styles.empty}>暂无数据</div>
-                    )}
+                  {/* 按操作系统统计 */}
+                  <div style={{ ...styles.card, flex: 1, minWidth: 300 }}>
+                    <div style={styles.cardHeader}>
+                      <h3 style={styles.cardTitle}>按操作系统统计</h3>
+                    </div>
+                    <div style={{ height: 250 }}>
+                      {stats.by_os?.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={stats.by_os}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                            >
+                              {stats.by_os.map((_: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div style={styles.empty}>暂无数据</div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

@@ -10,6 +10,9 @@ class UsageReport(BaseModel):
     country: str
     region: str
     city: str
+    app_version: str = ""
+    os_name: str = ""
+    os_version: str = ""
 
 
 class BatchReportRequest(BaseModel):
