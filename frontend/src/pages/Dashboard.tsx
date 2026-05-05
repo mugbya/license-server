@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Key, BarChart3, LogOut, Copy, Check, Plus, RefreshCw, Folder, Edit2, Trash2, X } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+
+const CHART_COLORS = ['#667eea', '#764ba2', '#f97316', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
 
 interface DashboardProps {
   onLogout: () => void
@@ -781,16 +784,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 {/* 概览卡片 */}
                 <div style={styles.statsGrid}>
                   <div style={styles.statCard}>
-                    <div style={styles.statValue}>{stats.total_reports || 0}</div>
-                    <div style={styles.statLabel}>总上报次数</div>
+                    <div style={styles.statValue}>{stats.total_machines || 0}</div>
+                    <div style={styles.statLabel}>总机器数</div>
                   </div>
                   <div style={styles.statCard}>
-                    <div style={styles.statValue}>{stats.reports_by_date?.length || 0}</div>
-                    <div style={styles.statLabel}>活跃天数</div>
-                  </div>
-                  <div style={styles.statCard}>
-                    <div style={styles.statValue}>{stats.reports_by_country?.length || 0}</div>
+                    <div style={styles.statValue}>{stats.by_country?.length || 0}</div>
                     <div style={styles.statLabel}>覆盖国家</div>
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={styles.statValue}>{stats.by_region?.length || 0}</div>
+                    <div style={styles.statLabel}>覆盖省份</div>
                   </div>
                 </div>
 
@@ -799,55 +802,120 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   <div style={styles.cardHeader}>
                     <h3 style={styles.cardTitle}>按国家/地区统计</h3>
                   </div>
-                  <div style={styles.cardContent}>
-                    {stats.reports_by_country?.length > 0 ? (
-                      <table style={styles.table}>
-                        <thead>
-                          <tr>
-                            <th style={styles.th}>国家/地区</th>
-                            <th style={styles.th}>数量</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {stats.reports_by_country.map((item: any, index: number) => (
-                            <tr key={index} style={styles.tr}>
-                              <td style={styles.td}>{item.country || '未知'}</td>
-                              <td style={styles.td}>{item.count}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div style={{ height: 300, minWidth: 300 }}>
+                    {stats.by_country?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={stats.by_country}
+                            dataKey="count"
+                            nameKey="country"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                          >
+                            {stats.by_country.map((_: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
                     ) : (
                       <div style={styles.empty}>暂无数据</div>
                     )}
                   </div>
                 </div>
 
-                {/* 最近上报记录 */}
+                {/* 按省份统计 */}
                 <div style={styles.card}>
                   <div style={styles.cardHeader}>
-                    <h3 style={styles.cardTitle}>最近上报记录</h3>
+                    <h3 style={styles.cardTitle}>按省份统计</h3>
+                  </div>
+                  <div style={{ height: 300, minWidth: 300 }}>
+                    {stats.by_region?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={stats.by_region}
+                            dataKey="count"
+                            nameKey="region"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                          >
+                            {stats.by_region.map((_: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div style={styles.empty}>暂无数据</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 按城市统计 */}
+                <div style={styles.card}>
+                  <div style={styles.cardHeader}>
+                    <h3 style={styles.cardTitle}>按城市统计</h3>
+                  </div>
+                  <div style={{ height: 300, minWidth: 300 }}>
+                    {stats.by_city?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={stats.by_city}
+                            dataKey="count"
+                            nameKey="city"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                          >
+                            {stats.by_city.map((_: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div style={styles.empty}>暂无数据</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 最近使用记录 */}
+                <div style={styles.card}>
+                  <div style={styles.cardHeader}>
+                    <h3 style={styles.cardTitle}>最近使用记录</h3>
                   </div>
                   <div style={styles.cardContent}>
-                    {stats.recent_reports?.length > 0 ? (
+                    {stats.recent_records?.length > 0 ? (
                       <table style={styles.table}>
                         <thead>
                           <tr>
-                            <th style={styles.th}>版本</th>
-                            <th style={styles.th}>操作系统</th>
+                            <th style={styles.th}>机器码</th>
                             <th style={styles.th}>IP</th>
                             <th style={styles.th}>位置</th>
-                            <th style={styles.th}>日期</th>
+                            <th style={styles.th}>更新时间</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {stats.recent_reports.slice(0, 20).map((report: any, index: number) => (
+                          {stats.recent_records.slice(0, 20).map((record: any, index: number) => (
                             <tr key={index} style={styles.tr}>
-                              <td style={styles.td}>{report.app_version || '-'}</td>
-                              <td style={styles.td}>{report.os_name || '-'}</td>
-                              <td style={styles.td}>{report.public_ip || '-'}</td>
-                              <td style={styles.td}>{[report.country, report.region, report.city].filter(Boolean).join(' ') || '-'}</td>
-                              <td style={styles.td}>{report.report_date || '-'}</td>
+                              <td style={styles.td}>{record.machine_code || '-'}</td>
+                              <td style={styles.td}>{record.public_ip || '-'}</td>
+                              <td style={styles.td}>{[record.country, record.region, record.city].filter(Boolean).join(' ') || '-'}</td>
+                              <td style={styles.td}>{record.updated_at || '-'}</td>
                             </tr>
                           ))}
                         </tbody>

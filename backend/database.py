@@ -347,20 +347,31 @@ async def init_db():
             )
         """)
 
-        # Usage reports table
+        # Usage records table (aggregated by machine_code)
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS usage_reports (
+            CREATE TABLE IF NOT EXISTS usage_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project TEXT NOT NULL DEFAULT 'zupu',
-                app_version TEXT NOT NULL,
-                os_name TEXT NOT NULL,
-                os_version TEXT NOT NULL,
+                machine_code TEXT NOT NULL UNIQUE,
                 public_ip TEXT,
                 country TEXT,
                 region TEXT,
                 city TEXT,
-                report_date TEXT NOT NULL,
-                created_at TEXT DEFAULT (datetime('now'))
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Usage detail table (location change history)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS usage_detail (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project TEXT NOT NULL DEFAULT 'zupu',
+                machine_code TEXT NOT NULL,
+                public_ip TEXT,
+                country TEXT,
+                region TEXT,
+                city TEXT,
+                changed_at TEXT DEFAULT (datetime('now'))
             )
         """)
 
@@ -693,88 +704,155 @@ async def log_usage(machine_code: str, action: str, license_key: str = None, ip_
 
 
 async def save_usage_reports(reports: List[dict]) -> dict:
-    """Save batch usage reports to database"""
+    """Save batch usage reports with dedup logic.
+
+    Logic:
+    - First report (machine_code not found) -> insert into both tables
+    - Subsequent report:
+        - IP changed or location changed -> update usage_records + insert usage_detail
+        - Same -> do nothing
+    """
+    count = 0
     async with aiosqlite.connect(DATABASE_PATH) as db:
         for report in reports:
-            await db.execute(
-                """INSERT INTO usage_reports
-                   (project, app_version, os_name, os_version, public_ip, country, region, city, report_date)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    report.get("project", "zupu"),
-                    report.get("app_version", ""),
-                    report.get("os_name", ""),
-                    report.get("os_version", ""),
-                    report.get("public_ip", ""),
-                    report.get("country", ""),
-                    report.get("region", ""),
-                    report.get("city", ""),
-                    report.get("report_date", "")
+            project = report.get("project", "zupu")
+            machine_code = report.get("machine_code", "")
+            public_ip = report.get("public_ip", "")
+            country = report.get("country", "")
+            region = report.get("region", "")
+            city = report.get("city", "")
+
+            if not machine_code:
+                continue
+
+            # Check if record exists in usage_records (by machine_code only)
+            async with db.execute(
+                "SELECT id, public_ip, country, region, city FROM usage_records WHERE machine_code = ?",
+                (machine_code,)
+            ) as cursor:
+                existing = await cursor.fetchone()
+
+            if not existing:
+                # First report: insert into both tables
+                await db.execute(
+                    """INSERT INTO usage_records (project, machine_code, public_ip, country, region, city)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (project, machine_code, public_ip, country, region, city)
                 )
-            )
+                await db.execute(
+                    """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (project, machine_code, public_ip, country, region, city)
+                )
+                count += 1
+            else:
+                # Check if IP changed or location changed
+                old_ip = existing[1]
+                old_country, old_region, old_city = existing[2], existing[3], existing[4]
+                ip_changed = (public_ip != old_ip)
+                location_changed = (country != old_country or region != old_region or city != old_city)
+
+                if ip_changed or location_changed:
+                    # Update usage_records + insert usage_detail
+                    await db.execute(
+                        """UPDATE usage_records SET public_ip = ?, country = ?, region = ?, city = ?, updated_at = datetime('now')
+                           WHERE machine_code = ?""",
+                        (public_ip, country, region, city, machine_code)
+                    )
+                    await db.execute(
+                        """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (project, machine_code, public_ip, country, region, city)
+                    )
+                    count += 1
+                # else: same record, do nothing
+
         await db.commit()
-        return {"success": True, "count": len(reports)}
+        return {"success": True, "count": count}
 
 
 async def get_usage_stats(project: str = None) -> dict:
-    """Get usage statistics, optionally filtered by project"""
+    """Get usage statistics from new tables, optionally filtered by project"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        # Total reports count
+        # Statistics by address triplet fields (Top 10 + Other)
+        def aggregate_top10(data):
+            if len(data) <= 10:
+                return data
+            top10 = data[:10]
+            others_sum = sum(r[1] for r in data[10:])
+            if others_sum > 0:
+                top10.append(('其他', others_sum))
+            return top10
+
         if project:
-            async with db.execute("SELECT COUNT(*) FROM usage_reports WHERE project = ?", (project,)) as cursor:
-                total_reports = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM usage_records WHERE project = ?", (project,)) as cursor:
+                total_machines = (await cursor.fetchone())[0]
             async with db.execute(
-                """SELECT report_date, COUNT(*) as count FROM usage_reports WHERE project = ?
-                   GROUP BY report_date ORDER BY report_date DESC LIMIT 30""",
+                """SELECT country, COUNT(*) as count FROM usage_records WHERE project = ? AND country != ''
+                   GROUP BY country ORDER BY count DESC LIMIT 11""",
                 (project,)
             ) as cursor:
-                reports_by_date = await cursor.fetchall()
+                by_country_raw = await cursor.fetchall()
             async with db.execute(
-                """SELECT country, COUNT(*) as count FROM usage_reports WHERE project = ?
-                   GROUP BY country ORDER BY count DESC LIMIT 10""",
+                """SELECT region, COUNT(*) as count FROM usage_records WHERE project = ? AND region != ''
+                   GROUP BY region ORDER BY count DESC LIMIT 11""",
                 (project,)
             ) as cursor:
-                reports_by_country = await cursor.fetchall()
+                by_region_raw = await cursor.fetchall()
             async with db.execute(
-                """SELECT project, app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at
-                   FROM usage_reports WHERE project = ? ORDER BY created_at DESC LIMIT 50""",
+                """SELECT city, COUNT(*) as count FROM usage_records WHERE project = ? AND city != ''
+                   GROUP BY city ORDER BY count DESC LIMIT 11""",
                 (project,)
             ) as cursor:
-                recent_reports = await cursor.fetchall()
+                by_city_raw = await cursor.fetchall()
+            async with db.execute(
+                """SELECT machine_code, public_ip, country, region, city, updated_at
+                   FROM usage_records WHERE project = ? ORDER BY updated_at DESC LIMIT 50""",
+                (project,)
+            ) as cursor:
+                recent_records = await cursor.fetchall()
         else:
-            async with db.execute("SELECT COUNT(*) FROM usage_reports") as cursor:
-                total_reports = (await cursor.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM usage_records") as cursor:
+                total_machines = (await cursor.fetchone())[0]
             async with db.execute(
-                "SELECT report_date, COUNT(*) as count FROM usage_reports GROUP BY report_date ORDER BY report_date DESC LIMIT 30"
+                """SELECT country, COUNT(*) as count FROM usage_records WHERE country != ''
+                   GROUP BY country ORDER BY count DESC LIMIT 11"""
             ) as cursor:
-                reports_by_date = await cursor.fetchall()
+                by_country_raw = await cursor.fetchall()
             async with db.execute(
-                "SELECT country, COUNT(*) as count FROM usage_reports GROUP BY country ORDER BY count DESC LIMIT 10"
+                """SELECT region, COUNT(*) as count FROM usage_records WHERE region != ''
+                   GROUP BY region ORDER BY count DESC LIMIT 11"""
             ) as cursor:
-                reports_by_country = await cursor.fetchall()
+                by_region_raw = await cursor.fetchall()
             async with db.execute(
-                "SELECT project, app_version, os_name, os_version, public_ip, country, region, city, report_date, created_at FROM usage_reports ORDER BY created_at DESC LIMIT 50"
+                """SELECT city, COUNT(*) as count FROM usage_records WHERE city != ''
+                   GROUP BY city ORDER BY count DESC LIMIT 11"""
             ) as cursor:
-                recent_reports = await cursor.fetchall()
+                by_city_raw = await cursor.fetchall()
+            async with db.execute(
+                "SELECT machine_code, public_ip, country, region, city, updated_at FROM usage_records ORDER BY updated_at DESC LIMIT 50"
+            ) as cursor:
+                recent_records = await cursor.fetchall()
+
+        by_country = aggregate_top10(by_country_raw)
+        by_region = aggregate_top10(by_region_raw)
+        by_city = aggregate_top10(by_city_raw)
 
         return {
-            "total_reports": total_reports,
-            "reports_by_date": [{"date": r[0], "count": r[1]} for r in reports_by_date],
-            "reports_by_country": [{"country": r[0], "count": r[1]} for r in reports_by_country],
-            "recent_reports": [
+            "total_machines": total_machines,
+            "by_country": [{"name": r[0], "value": r[1]} for r in by_country],
+            "by_region": [{"name": r[0], "value": r[1]} for r in by_region],
+            "by_city": [{"name": r[0], "value": r[1]} for r in by_city],
+            "recent_records": [
                 {
-                    "project": r[0],
-                    "app_version": r[1],
-                    "os_name": r[2],
-                    "os_version": r[3],
-                    "public_ip": r[4],
-                    "country": r[5],
-                    "region": r[6],
-                    "city": r[7],
-                    "report_date": r[8],
-                    "created_at": r[9]
+                    "machine_code": r[0],
+                    "public_ip": r[1],
+                    "country": r[2],
+                    "region": r[3],
+                    "city": r[4],
+                    "updated_at": r[5]
                 }
-                for r in recent_reports
+                for r in recent_records
             ]
         }
 

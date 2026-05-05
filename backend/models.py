@@ -4,15 +4,12 @@ from datetime import datetime
 
 
 class UsageReport(BaseModel):
-    app_version: str
-    os_name: str
-    os_version: str
+    machine_code: str  # 机器码
+    project: str  # 项目编码
     public_ip: str
     country: str
     region: str
     city: str
-    report_date: str
-    project: str  # 项目编码
 
 
 class BatchReportRequest(BaseModel):
