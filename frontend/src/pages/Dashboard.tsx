@@ -519,12 +519,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  const deleteLicenseKey = async (licenseKey: string) => {
-    if (!confirm(`确定要删除许可证 ${licenseKey} 吗？此操作不可恢复！`)) return
+  const deleteLicenseKey = async (id: number) => {
+    if (!confirm(`确定要删除该许可证吗？此操作不可恢复！`)) return
 
     try {
-      const res = await fetch(`/api/license/key?license_key=${encodeURIComponent(licenseKey)}`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/license/key/delete/${id}`, {
+        method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
       })
       if (res.ok) {
@@ -1591,7 +1591,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => deleteLicenseKey(k.license_key)}
+                                  onClick={() => deleteLicenseKey(k.id)}
                                   style={{ ...styles.actionButton, color: '#ef4444' }}
                                   title="删除"
                                 >

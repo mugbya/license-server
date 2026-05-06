@@ -110,11 +110,11 @@ async def unbind(license_key: str, authorization: str = Header(None)):
     raise HTTPException(status_code=400, detail="Failed to unbind key")
 
 
-@router.delete("/key")
-async def delete_key(license_key: str, authorization: str = Header(None)):
-    """Delete a license key completely"""
+@router.post("/key/delete/{id}")
+async def delete_key(id: int, authorization: str = Header(None)):
+    """Delete a license key completely by ID"""
     await verify_token(authorization)
-    result = await db.delete_license_key(license_key)
+    result = await db.delete_license_key(id)
     if result.get("success"):
         return {"success": True}
     raise HTTPException(status_code=400, detail="Failed to delete key")

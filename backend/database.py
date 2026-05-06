@@ -651,10 +651,10 @@ async def unbind_license(license_key: str) -> dict:
         return {"success": True}
 
 
-async def delete_license_key(license_key: str) -> dict:
-    """Delete a license key completely"""
+async def delete_license_key(id: int) -> dict:
+    """Delete a license key completely by ID"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        await db.execute("DELETE FROM license_keys WHERE license_key = ?", (license_key,))
+        await db.execute("DELETE FROM license_keys WHERE id = ?", (id,))
         await db.commit()
         return {"success": True}
 
