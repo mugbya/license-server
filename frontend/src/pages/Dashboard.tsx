@@ -235,12 +235,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  const loadStats = async (page = 1) => {
+  const loadStats = async (page = 1, pageSize?: number) => {
     setIsLoadingStats(true)
     setError('')
+    const size = pageSize ?? usageListPageSize
 
     try {
-      const url = currentProject ? `/api/license/stats?project=${currentProject.code}&page=${page}&page_size=${usageListPageSize}` : `/api/license/stats?page=${page}&page_size=${usageListPageSize}`
+      const url = currentProject ? `/api/license/stats?project=${currentProject.code}&page=${page}&page_size=${size}` : `/api/license/stats?page=${page}&page_size=${size}`
       const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
@@ -262,10 +263,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  const loadUsageDetail = async (page = 1) => {
+  const loadUsageDetail = async (page = 1, pageSize?: number) => {
     setIsLoadingDetail(true)
+    const size = pageSize ?? usageDetailPageSize
     try {
-      const url = currentProject ? `/api/license/usage/detail?project=${currentProject.code}&page=${page}&page_size=${usageDetailPageSize}` : `/api/license/usage/detail?page=${page}&page_size=${usageDetailPageSize}`
+      const url = currentProject ? `/api/license/usage/detail?project=${currentProject.code}&page=${page}&page_size=${size}` : `/api/license/usage/detail?page=${page}&page_size=${size}`
       const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
@@ -1245,53 +1247,84 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               </div>
               <div style={styles.cardContent}>
                 {stats?.recent_records?.length > 0 ? (
-                  <table style={styles.table}>
-                    <thead>
-                      <tr>
-                        <th style={styles.th}>机器码</th>
-                        <th style={styles.th}>IP地址</th>
-                        <th style={styles.th}>国家</th>
-                        <th style={styles.th}>省份</th>
-                        <th style={styles.th}>城市</th>
-                        <th style={styles.th}>操作系统</th>
-                        <th style={styles.th}>系统版本</th>
-                        <th style={styles.th}>更新时间</th>
-                        <th style={styles.th}>操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stats.recent_records
-                        .filter((r: any) => {
-                          const f = usageListFilter
-                          return (!f.machine_code || r.machine_code.includes(f.machine_code)) &&
-                                 (!f.ip || r.public_ip.includes(f.ip)) &&
-                                 (!f.country || (r.country && r.country.includes(f.country))) &&
-                                 (!f.region || (r.region && r.region.includes(f.region))) &&
-                                 (!f.city || (r.city && r.city.includes(f.city)))
-                        })
-                        .slice(0, 50).map((record: any, index: number) => (
-                        <tr key={index} style={styles.tr}>
-                          <td style={styles.td}>{record.machine_code}</td>
-                          <td style={styles.td}>{record.public_ip}</td>
-                          <td style={styles.td}>{record.country}</td>
-                          <td style={styles.td}>{record.region}</td>
-                          <td style={styles.td}>{record.city}</td>
-                          <td style={styles.td}>{record.os_name || '-'}</td>
-                          <td style={styles.td}>{record.os_version || '-'}</td>
-                          <td style={styles.td}>{record.updated_at}</td>
-                          <td style={styles.td}>
-                            <button
-                              onClick={() => deleteUsageRecord(record.machine_code)}
-                              style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                              title="删除"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
+                  <>
+                    <table style={styles.table}>
+                      <thead>
+                        <tr>
+                          <th style={styles.th}>机器码</th>
+                          <th style={styles.th}>IP地址</th>
+                          <th style={styles.th}>国家</th>
+                          <th style={styles.th}>省份</th>
+                          <th style={styles.th}>城市</th>
+                          <th style={styles.th}>操作系统</th>
+                          <th style={styles.th}>系统版本</th>
+                          <th style={styles.th}>更新时间</th>
+                          <th style={styles.th}>操作</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {stats.recent_records
+                          .filter((r: any) => {
+                            const f = usageListFilter
+                            return (!f.machine_code || r.machine_code.includes(f.machine_code)) &&
+                                   (!f.ip || r.public_ip.includes(f.ip)) &&
+                                   (!f.country || (r.country && r.country.includes(f.country))) &&
+                                   (!f.region || (r.region && r.region.includes(f.region))) &&
+                                   (!f.city || (r.city && r.city.includes(f.city)))
+                          })
+                          .slice(0, 50).map((record: any, index: number) => (
+                          <tr key={index} style={styles.tr}>
+                            <td style={styles.td}>{record.machine_code}</td>
+                            <td style={styles.td}>{record.public_ip}</td>
+                            <td style={styles.td}>{record.country}</td>
+                            <td style={styles.td}>{record.region}</td>
+                            <td style={styles.td}>{record.city}</td>
+                            <td style={styles.td}>{record.os_name || '-'}</td>
+                            <td style={styles.td}>{record.os_version || '-'}</td>
+                            <td style={styles.td}>{record.updated_at}</td>
+                            <td style={styles.td}>
+                              <button
+                                onClick={() => deleteUsageRecord(record.machine_code)}
+                                style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                title="删除"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={styles.pagination}>
+                      <div style={styles.paginationInfo}>
+                        <span>每页</span>
+                        <select
+                          value={usageListPageSize}
+                          onChange={(e) => { const newSize = Number(e.target.value); setUsageListPageSize(newSize); setUsageListPage(1); loadStats(1, newSize) }}
+                          style={styles.paginationSelect}
+                        >
+                          <option value={10}>10 条</option>
+                          <option value={20}>20 条</option>
+                          <option value={50}>50 条</option>
+                          <option value={100}>100 条</option>
+                        </select>
+                        <span>共 {usageListTotal} 条</span>
+                      </div>
+                      <div style={styles.paginationControls}>
+                        <button
+                          onClick={() => loadStats(usageListPage - 1)}
+                          disabled={usageListPage <= 1}
+                          style={usageListPage <= 1 ? styles.paginationButtonDisabled : styles.paginationButton}
+                        >上一页</button>
+                        <span style={styles.paginationText}>第 {usageListPage}/{Math.ceil(usageListTotal / usageListPageSize) || 1} 页</span>
+                        <button
+                          onClick={() => loadStats(usageListPage + 1)}
+                          disabled={usageListPage >= Math.ceil(usageListTotal / usageListPageSize)}
+                          style={usageListPage >= Math.ceil(usageListTotal / usageListPageSize) ? styles.paginationButtonDisabled : styles.paginationButton}
+                        >下一页</button>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <div style={styles.empty}>暂无数据</div>
                 )}
@@ -1373,55 +1406,86 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 {isLoadingDetail ? (
                   <div style={styles.loading}>加载中...</div>
                 ) : usageDetail.length > 0 ? (
-                  <table style={styles.table}>
-                    <thead>
-                      <tr>
-                        <th style={styles.th}>ID</th>
-                        <th style={styles.th}>机器码</th>
-                        <th style={styles.th}>IP地址</th>
-                        <th style={styles.th}>国家</th>
-                        <th style={styles.th}>省份</th>
-                        <th style={styles.th}>城市</th>
-                        <th style={styles.th}>操作系统</th>
-                        <th style={styles.th}>系统版本</th>
-                        <th style={styles.th}>变更时间</th>
-                        <th style={styles.th}>操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {usageDetail
-                        .filter((r: any) => {
-                          const f = usageDetailFilter
-                          return (!f.machine_code || r.machine_code.includes(f.machine_code)) &&
-                                 (!f.ip || r.public_ip.includes(f.ip)) &&
-                                 (!f.country || (r.country && r.country.includes(f.country))) &&
-                                 (!f.region || (r.region && r.region.includes(f.region))) &&
-                                 (!f.city || (r.city && r.city.includes(f.city)))
-                        })
-                        .map((record: any, index: number) => (
-                        <tr key={index} style={styles.tr}>
-                          <td style={styles.td}>{record.id}</td>
-                          <td style={styles.td}>{record.machine_code}</td>
-                          <td style={styles.td}>{record.public_ip}</td>
-                          <td style={styles.td}>{record.country}</td>
-                          <td style={styles.td}>{record.region}</td>
-                          <td style={styles.td}>{record.city}</td>
-                          <td style={styles.td}>{record.os_name || '-'}</td>
-                          <td style={styles.td}>{record.os_version || '-'}</td>
-                          <td style={styles.td}>{record.changed_at}</td>
-                          <td style={styles.td}>
-                            <button
-                              onClick={() => deleteUsageDetail(record.id)}
-                              style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                              title="删除"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
+                  <>
+                    <table style={styles.table}>
+                      <thead>
+                        <tr>
+                          <th style={styles.th}>ID</th>
+                          <th style={styles.th}>机器码</th>
+                          <th style={styles.th}>IP地址</th>
+                          <th style={styles.th}>国家</th>
+                          <th style={styles.th}>省份</th>
+                          <th style={styles.th}>城市</th>
+                          <th style={styles.th}>操作系统</th>
+                          <th style={styles.th}>系统版本</th>
+                          <th style={styles.th}>变更时间</th>
+                          <th style={styles.th}>操作</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {usageDetail
+                          .filter((r: any) => {
+                            const f = usageDetailFilter
+                            return (!f.machine_code || r.machine_code.includes(f.machine_code)) &&
+                                   (!f.ip || r.public_ip.includes(f.ip)) &&
+                                   (!f.country || (r.country && r.country.includes(f.country))) &&
+                                   (!f.region || (r.region && r.region.includes(f.region))) &&
+                                   (!f.city || (r.city && r.city.includes(f.city)))
+                          })
+                          .map((record: any, index: number) => (
+                          <tr key={index} style={styles.tr}>
+                            <td style={styles.td}>{record.id}</td>
+                            <td style={styles.td}>{record.machine_code}</td>
+                            <td style={styles.td}>{record.public_ip}</td>
+                            <td style={styles.td}>{record.country}</td>
+                            <td style={styles.td}>{record.region}</td>
+                            <td style={styles.td}>{record.city}</td>
+                            <td style={styles.td}>{record.os_name || '-'}</td>
+                            <td style={styles.td}>{record.os_version || '-'}</td>
+                            <td style={styles.td}>{record.changed_at}</td>
+                            <td style={styles.td}>
+                              <button
+                                onClick={() => deleteUsageDetail(record.id)}
+                                style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                                title="删除"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={styles.pagination}>
+                      <div style={styles.paginationInfo}>
+                        <span>每页</span>
+                        <select
+                          value={usageDetailPageSize}
+                          onChange={(e) => { const newSize = Number(e.target.value); setUsageDetailPageSize(newSize); setUsageDetailPage(1); loadUsageDetail(1, newSize) }}
+                          style={styles.paginationSelect}
+                        >
+                          <option value={10}>10 条</option>
+                          <option value={20}>20 条</option>
+                          <option value={50}>50 条</option>
+                          <option value={100}>100 条</option>
+                        </select>
+                        <span>共 {usageDetailTotal} 条</span>
+                      </div>
+                      <div style={styles.paginationControls}>
+                        <button
+                          onClick={() => loadUsageDetail(usageDetailPage - 1)}
+                          disabled={usageDetailPage <= 1}
+                          style={usageDetailPage <= 1 ? styles.paginationButtonDisabled : styles.paginationButton}
+                        >上一页</button>
+                        <span style={styles.paginationText}>第 {usageDetailPage}/{Math.ceil(usageDetailTotal / usageDetailPageSize) || 1} 页</span>
+                        <button
+                          onClick={() => loadUsageDetail(usageDetailPage + 1)}
+                          disabled={usageDetailPage >= Math.ceil(usageDetailTotal / usageDetailPageSize)}
+                          style={usageDetailPage >= Math.ceil(usageDetailTotal / usageDetailPageSize) ? styles.paginationButtonDisabled : styles.paginationButton}
+                        >下一页</button>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <div style={styles.empty}>暂无数据</div>
                 )}
