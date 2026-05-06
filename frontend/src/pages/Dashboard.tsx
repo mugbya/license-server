@@ -1603,25 +1603,33 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         ))}
                       </tbody>
                     </table>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', marginTop: 8, flexWrap: 'wrap', gap: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontSize: 13, color: '#666' }}>每页</span>
+                    <div style={styles.pagination}>
+                      <div style={styles.paginationInfo}>
+                        <span>每页</span>
                         <select
                           value={keysPageSize}
                           onChange={(e) => { setKeysPageSize(Number(e.target.value)); setKeysPage(1); loadLicenseKeys(1) }}
-                          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
+                          style={styles.paginationSelect}
                         >
                           <option value={10}>10 条</option>
                           <option value={20}>20 条</option>
                           <option value={50}>50 条</option>
                           <option value={100}>100 条</option>
                         </select>
-                        <span style={{ fontSize: 13, color: '#666' }}>共 {keysTotal} 条</span>
+                        <span>共 {keysTotal} 条</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <button onClick={() => loadLicenseKeys(keysPage - 1)} disabled={keysPage <= 1} style={{ ...styles.actionButton, opacity: keysPage <= 1 ? 0.5 : 1, whiteSpace: 'nowrap' }}>上一页</button>
-                        <span style={{ fontSize: 13, color: '#666', padding: '0 8px', whiteSpace: 'nowrap' }}>第 {keysPage}/{Math.ceil(keysTotal / keysPageSize) || 1} 页</span>
-                        <button onClick={() => loadLicenseKeys(keysPage + 1)} disabled={keysPage >= Math.ceil(keysTotal / keysPageSize)} style={{ ...styles.actionButton, opacity: keysPage >= Math.ceil(keysTotal / keysPageSize) ? 0.5 : 1, whiteSpace: 'nowrap' }}>下一页</button>
+                      <div style={styles.paginationControls}>
+                        <button
+                          onClick={() => loadLicenseKeys(keysPage - 1)}
+                          disabled={keysPage <= 1}
+                          style={keysPage <= 1 ? styles.paginationButtonDisabled : styles.paginationButton}
+                        >上一页</button>
+                        <span style={styles.paginationText}>第 {keysPage}/{Math.ceil(keysTotal / keysPageSize) || 1} 页</span>
+                        <button
+                          onClick={() => loadLicenseKeys(keysPage + 1)}
+                          disabled={keysPage >= Math.ceil(keysTotal / keysPageSize)}
+                          style={keysPage >= Math.ceil(keysTotal / keysPageSize) ? styles.paginationButtonDisabled : styles.paginationButton}
+                        >下一页</button>
                       </div>
                     </div>
                     </>
@@ -2388,5 +2396,60 @@ const styles: Record<string, React.CSSProperties> = {
     width: '16px',
     height: '16px',
     cursor: 'pointer'
+  },
+  pagination: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 0',
+    marginTop: 8,
+    flexWrap: 'wrap',
+    gap: 12
+  },
+  paginationInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 13,
+    color: '#666'
+  },
+  paginationControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0
+  },
+  paginationButton: {
+    padding: '6px 14px',
+    border: '1px solid #e0e0e0',
+    borderRadius: 6,
+    background: '#fff',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#333',
+    transition: 'all 0.2s'
+  },
+  paginationButtonDisabled: {
+    opacity: 0.4,
+    cursor: 'not-allowed',
+    border: '1px solid #e0e0e0',
+    borderRadius: 6,
+    background: '#f5f5f5',
+    padding: '6px 14px',
+    fontSize: 13,
+    color: '#999'
+  },
+  paginationSelect: {
+    padding: '6px 10px',
+    borderRadius: 6,
+    border: '1px solid #e0e0e0',
+    fontSize: 13,
+    background: '#fff',
+    cursor: 'pointer'
+  },
+  paginationText: {
+    fontSize: 13,
+    color: '#666',
+    padding: '0 8px'
   }
 }
