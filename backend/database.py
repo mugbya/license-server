@@ -937,32 +937,52 @@ async def get_usage_detail_records(project: str = None) -> List[dict]:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         if project:
             async with db.execute(
-                """SELECT project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
+                """SELECT id, project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
                    FROM usage_detail WHERE project = ? ORDER BY changed_at DESC LIMIT 200""",
                 (project,)
             ) as cursor:
                 rows = await cursor.fetchall()
         else:
             async with db.execute(
-                """SELECT project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
+                """SELECT id, project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
                    FROM usage_detail ORDER BY changed_at DESC LIMIT 200"""
             ) as cursor:
                 rows = await cursor.fetchall()
 
         return [
             {
-                "project": r[0],
-                "machine_code": r[1],
-                "public_ip": r[2],
-                "country": r[3],
-                "region": r[4],
-                "city": r[5],
-                "os_name": r[6],
-                "os_version": r[7],
-                "changed_at": r[8]
+                "id": r[0],
+                "project": r[1],
+                "machine_code": r[2],
+                "public_ip": r[3],
+                "country": r[4],
+                "region": r[5],
+                "city": r[6],
+                "os_name": r[7],
+                "os_version": r[8],
+                "changed_at": r[9]
             }
             for r in rows
         ]
+
+
+async def delete_usage_record(machine_code: str) -> dict:
+    """Delete usage record by machine code"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Delete from usage_records
+        await db.execute("DELETE FROM usage_records WHERE machine_code = ?", (machine_code,))
+        # Delete related detail records
+        await db.execute("DELETE FROM usage_detail WHERE machine_code = ?", (machine_code,))
+        await db.commit()
+        return {"success": True}
+
+
+async def delete_usage_detail(id: int) -> dict:
+    """Delete usage detail record by id"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("DELETE FROM usage_detail WHERE id = ?", (id,))
+        await db.commit()
+        return {"success": True}
 
 
 async def verify_admin(username: str, password: str) -> Optional[dict]:

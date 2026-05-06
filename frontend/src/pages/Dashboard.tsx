@@ -247,6 +247,40 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
+  const deleteUsageRecord = async (machine_code: string) => {
+    if (!confirm(`确定删除机器码为 ${machine_code} 的记录吗？`)) return
+    try {
+      const res = await fetch(`/api/license/usage/record/${machine_code}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        }
+      })
+      if (res.ok) {
+        loadStats()
+      }
+    } catch (err) {
+      console.error('删除失败:', err)
+    }
+  }
+
+  const deleteUsageDetail = async (id: number) => {
+    if (!confirm('确定删除该明细记录吗？')) return
+    try {
+      const res = await fetch(`/api/license/usage/detail/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        }
+      })
+      if (res.ok) {
+        loadUsageDetail()
+      }
+    } catch (err) {
+      console.error('删除失败:', err)
+    }
+  }
+
   const changePassword = async () => {
     setPasswordError('')
 
@@ -1166,6 +1200,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         <th style={styles.th}>操作系统</th>
                         <th style={styles.th}>系统版本</th>
                         <th style={styles.th}>更新时间</th>
+                        <th style={styles.th}>操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1188,6 +1223,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           <td style={styles.td}>{record.os_name || '-'}</td>
                           <td style={styles.td}>{record.os_version || '-'}</td>
                           <td style={styles.td}>{record.updated_at}</td>
+                          <td style={styles.td}>
+                            <button
+                              onClick={() => deleteUsageRecord(record.machine_code)}
+                              style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                              title="删除"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1276,6 +1320,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   <table style={styles.table}>
                     <thead>
                       <tr>
+                        <th style={styles.th}>ID</th>
                         <th style={styles.th}>机器码</th>
                         <th style={styles.th}>IP地址</th>
                         <th style={styles.th}>国家</th>
@@ -1284,6 +1329,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         <th style={styles.th}>操作系统</th>
                         <th style={styles.th}>系统版本</th>
                         <th style={styles.th}>变更时间</th>
+                        <th style={styles.th}>操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1298,6 +1344,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         })
                         .map((record: any, index: number) => (
                         <tr key={index} style={styles.tr}>
+                          <td style={styles.td}>{record.id}</td>
                           <td style={styles.td}>{record.machine_code}</td>
                           <td style={styles.td}>{record.public_ip}</td>
                           <td style={styles.td}>{record.country}</td>
@@ -1306,6 +1353,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           <td style={styles.td}>{record.os_name || '-'}</td>
                           <td style={styles.td}>{record.os_version || '-'}</td>
                           <td style={styles.td}>{record.changed_at}</td>
+                          <td style={styles.td}>
+                            <button
+                              onClick={() => deleteUsageDetail(record.id)}
+                              style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                              title="删除"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

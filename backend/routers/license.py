@@ -136,6 +136,26 @@ async def decode_license(req: DecodeLicenseRequest, authorization: str = Header(
     return {"success": False, "error": "无效的授权码"}
 
 
+@router.delete("/usage/record/{machine_code}")
+async def delete_usage_record(machine_code: str, authorization: str = Header(None)):
+    """Delete usage record by machine code (admin only)"""
+    await verify_token(authorization)
+    result = await db.delete_usage_record(machine_code)
+    if result.get("success"):
+        return {"success": True}
+    raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
+
+
+@router.delete("/usage/detail/{id}")
+async def delete_usage_detail(id: int, authorization: str = Header(None)):
+    """Delete usage detail record by id (admin only)"""
+    await verify_token(authorization)
+    result = await db.delete_usage_detail(id)
+    if result.get("success"):
+        return {"success": True}
+    raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
+
+
 @router.post("/trial")
 async def get_trial(request: Request, machine_code: str):
     """Get or create trial license for a machine code (no auth required).
