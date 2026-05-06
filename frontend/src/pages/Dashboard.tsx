@@ -78,10 +78,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [usageDetailTotal, setUsageDetailTotal] = useState(0)
 
   // Load license keys with pagination
-  const loadLicenseKeys = async (page = 1) => {
+  const loadLicenseKeys = async (page = 1, pageSize?: number) => {
     setIsLoadingKeys(true)
+    const size = pageSize ?? keysPageSize
     try {
-      const url = currentProject ? `/api/license/keys?project=${currentProject.code}&page=${page}&page_size=${keysPageSize}` : `/api/license/keys?page=${page}&page_size=${keysPageSize}`
+      const url = currentProject ? `/api/license/keys?project=${currentProject.code}&page=${page}&page_size=${size}` : `/api/license/keys?page=${page}&page_size=${size}`
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
       })
@@ -1608,7 +1609,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         <span>每页</span>
                         <select
                           value={keysPageSize}
-                          onChange={(e) => { setKeysPageSize(Number(e.target.value)); setKeysPage(1); loadLicenseKeys(1) }}
+                          onChange={(e) => { const newSize = Number(e.target.value); setKeysPageSize(newSize); loadLicenseKeys(1, newSize) }}
                           style={styles.paginationSelect}
                         >
                           <option value={10}>10 条</option>
