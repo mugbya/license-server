@@ -79,6 +79,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [usageDetailPageSize, setUsageDetailPageSize] = useState(20)
   const [usageListPageSize, setUsageListPageSize] = useState(20)
 
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+    confirmText?: string
+    cancelText?: string
+    danger?: boolean
+  }>({ show: false, title: '', message: '', onConfirm: () => {} })
+
   // Load license keys with pagination
   const loadLicenseKeys = async (page = 1, pageSize?: number) => {
     setIsLoadingKeys(true)
@@ -287,37 +298,55 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const deleteUsageRecord = async (machine_code: string) => {
-    if (!confirm(`确定删除机器码为 ${machine_code} 的记录吗？`)) return
-    try {
-      const res = await fetch(`/api/license/usage/record/${machine_code}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+    setConfirmModal({
+      show: true,
+      title: '删除确认',
+      message: `确定删除机器码为 ${machine_code} 的记录吗？`,
+      confirmText: '删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, show: false }))
+        try {
+          const res = await fetch(`/api/license/usage/record/${machine_code}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+            }
+          })
+          if (res.ok) {
+            loadStats()
+          }
+        } catch (err) {
+          console.error('删除失败:', err)
         }
-      })
-      if (res.ok) {
-        loadStats()
       }
-    } catch (err) {
-      console.error('删除失败:', err)
-    }
+    })
   }
 
   const deleteUsageDetail = async (id: number) => {
-    if (!confirm('确定删除该明细记录吗？')) return
-    try {
-      const res = await fetch(`/api/license/usage/detail/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+    setConfirmModal({
+      show: true,
+      title: '删除确认',
+      message: '确定删除该明细记录吗？',
+      confirmText: '删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, show: false }))
+        try {
+          const res = await fetch(`/api/license/usage/detail/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+            }
+          })
+          if (res.ok) {
+            loadUsageDetail()
+          }
+        } catch (err) {
+          console.error('删除失败:', err)
         }
-      })
-      if (res.ok) {
-        loadUsageDetail()
       }
-    } catch (err) {
-      console.error('删除失败:', err)
-    }
+    })
   }
 
   const changePassword = async () => {
@@ -445,25 +474,33 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const deleteProject = async (project: Project) => {
-    if (!confirm(`确定要删除项目"${project.name}"吗？`)) return
-
-    try {
-      const res = await fetch(`/api/projects/${project.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-      })
-      if (res.ok) {
-        loadProjects()
-        if (currentProject?.id === project.id) {
-          setCurrentProject(null)
+    setConfirmModal({
+      show: true,
+      title: '删除确认',
+      message: `确定要删除项目"${project.name}"吗？此操作不可恢复！`,
+      confirmText: '删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, show: false }))
+        try {
+          const res = await fetch(`/api/projects/${project.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+          })
+          if (res.ok) {
+            loadProjects()
+            if (currentProject?.id === project.id) {
+              setCurrentProject(null)
+            }
+          } else {
+            const data = await res.json()
+            alert(data.detail || '删除失败')
+          }
+        } catch (err) {
+          alert('网络错误')
         }
-      } else {
-        const data = await res.json()
-        alert(data.detail || '删除失败')
       }
-    } catch (err) {
-      alert('网络错误')
-    }
+    })
   }
 
   const loadKeysStats = async () => {
@@ -487,60 +524,84 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const revokeLicenseKey = async (licenseKey: string) => {
-    if (!confirm(`确定要撤销许可证 ${licenseKey} 吗？`)) return
-
-    try {
-      const res = await fetch(`/api/license/revoke?license_key=${encodeURIComponent(licenseKey)}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-      })
-      if (res.ok) {
-        loadLicenseKeys()
-      } else {
-        const data = await res.json()
-        alert(data.detail || '撤销失败')
+    setConfirmModal({
+      show: true,
+      title: '撤销确认',
+      message: `确定要撤销许可证 ${licenseKey} 吗？撤销后该许可证将无法使用。`,
+      confirmText: '撤销',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, show: false }))
+        try {
+          const res = await fetch(`/api/license/revoke?license_key=${encodeURIComponent(licenseKey)}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+          })
+          if (res.ok) {
+            loadLicenseKeys()
+          } else {
+            const data = await res.json()
+            alert(data.detail || '撤销失败')
+          }
+        } catch (err) {
+          alert('网络错误')
+        }
       }
-    } catch (err) {
-      alert('网络错误')
-    }
+    })
   }
 
   const unbindLicenseKey = async (licenseKey: string) => {
-    if (!confirm(`确定要解绑许可证 ${licenseKey} 吗？解绑后将清除绑定的机器码。`)) return
-
-    try {
-      const res = await fetch(`/api/license/unbind?license_key=${encodeURIComponent(licenseKey)}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-      })
-      if (res.ok) {
-        loadLicenseKeys()
-      } else {
-        const data = await res.json()
-        alert(data.detail || '解绑失败')
+    setConfirmModal({
+      show: true,
+      title: '解绑确认',
+      message: `确定要解绑许可证 ${licenseKey} 吗？解绑后将清除绑定的机器码。`,
+      confirmText: '解绑',
+      danger: false,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, show: false }))
+        try {
+          const res = await fetch(`/api/license/unbind?license_key=${encodeURIComponent(licenseKey)}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+          })
+          if (res.ok) {
+            loadLicenseKeys()
+          } else {
+            const data = await res.json()
+            alert(data.detail || '解绑失败')
+          }
+        } catch (err) {
+          alert('网络错误')
+        }
       }
-    } catch (err) {
-      alert('网络错误')
-    }
+    })
   }
 
   const deleteLicenseKey = async (id: number) => {
-    if (!confirm(`确定要删除该许可证吗？此操作不可恢复！`)) return
-
-    try {
-      const res = await fetch(`/api/license/key/delete/${id}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-      })
-      if (res.ok) {
-        loadLicenseKeys()
-      } else {
-        const data = await res.json()
-        alert(data.detail || '删除失败')
+    setConfirmModal({
+      show: true,
+      title: '删除确认',
+      message: '确定要删除该许可证吗？此操作不可恢复！',
+      confirmText: '删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, show: false }))
+        try {
+          const res = await fetch(`/api/license/key/delete/${id}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+          })
+          if (res.ok) {
+            loadLicenseKeys()
+          } else {
+            const data = await res.json()
+            alert(data.detail || '删除失败')
+          }
+        } catch (err) {
+          alert('网络错误')
+        }
       }
-    } catch (err) {
-      alert('网络错误')
-    }
+    })
   }
 
   return (
@@ -1961,6 +2022,65 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 }}
               >
                 关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 自定义确认弹窗 */}
+      {confirmModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: 12,
+            padding: 24,
+            minWidth: 360,
+            maxWidth: 420,
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{confirmModal.title}</h3>
+            <p style={{ margin: '0 0 24px 0', fontSize: 14, color: '#666', lineHeight: 1.6 }}>{confirmModal.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                onClick={() => setConfirmModal(prev => ({ ...prev, show: false }))}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 6,
+                  border: '1px solid #e0e0e0',
+                  background: '#fff',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  color: '#666'
+                }}
+              >
+                {confirmModal.cancelText || '取消'}
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: confirmModal.danger ? '#ef4444' : '#667eea',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  color: '#fff',
+                  fontWeight: 500
+                }}
+              >
+                {confirmModal.confirmText || '确定'}
               </button>
             </div>
           </div>
