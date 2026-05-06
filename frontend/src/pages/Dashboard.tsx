@@ -77,6 +77,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [usageDetailPage, setUsageDetailPage] = useState(1)
   const [usageDetailTotal, setUsageDetailTotal] = useState(0)
   const [usageDetailPageSize, setUsageDetailPageSize] = useState(20)
+  const [usageListPageSize, setUsageListPageSize] = useState(20)
 
   // Load license keys with pagination
   const loadLicenseKeys = async (page = 1, pageSize?: number) => {
@@ -239,7 +240,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setError('')
 
     try {
-      const url = currentProject ? `/api/license/stats?project=${currentProject.code}&page=${page}&page_size=${pageSize}` : `/api/license/stats?page=${page}&page_size=${pageSize}`
+      const url = currentProject ? `/api/license/stats?project=${currentProject.code}&page=${page}&page_size=${usageListPageSize}` : `/api/license/stats?page=${page}&page_size=${usageListPageSize}`
       const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
