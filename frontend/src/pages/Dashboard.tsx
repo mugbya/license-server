@@ -68,6 +68,36 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   // Usage detail filter
   const [usageDetailFilter, setUsageDetailFilter] = useState({ machine_code: '', ip: '', country: '', region: '', city: '' })
 
+  // Pagination states
+  const [keysPage, setKeysPage] = useState(1)
+  const [keysTotal, setKeysTotal] = useState(0)
+  const [usageListPage, setUsageListPage] = useState(1)
+  const [usageListTotal, setUsageListTotal] = useState(0)
+  const [usageDetailPage, setUsageDetailPage] = useState(1)
+  const [usageDetailTotal, setUsageDetailTotal] = useState(0)
+  const pageSize = 20
+
+  // Load license keys with pagination
+  const loadLicenseKeys = async (page = 1) => {
+    setIsLoadingKeys(true)
+    try {
+      const url = currentProject ? `/api/license/keys?project=${currentProject.code}&page=${page}&page_size=${pageSize}` : `/api/license/keys?page=${page}&page_size=${pageSize}`
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setLicenseKeys(data.data)
+        setKeysTotal(data.total || 0)
+        setKeysPage(page)
+      }
+    } catch (err) {
+      console.error('加载许可证失败:', err)
+    } finally {
+      setIsLoadingKeys(false)
+    }
+  }
+
   // 加载项目列表 (防止 StrictMode 下重复调用)
   useEffect(() => {
     if (projectsLoaded.current) return
@@ -202,12 +232,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  const loadStats = async () => {
+  const loadStats = async (page = 1) => {
     setIsLoadingStats(true)
     setError('')
 
     try {
-      const url = currentProject ? `/api/license/stats?project=${currentProject.code}` : '/api/license/stats'
+      const url = currentProject ? `/api/license/stats?project=${currentProject.code}&page=${page}&page_size=${pageSize}` : `/api/license/stats?page=${page}&page_size=${pageSize}`
       const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
@@ -217,6 +247,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       if (res.ok) {
         const data = await res.json()
         setStats(data.data)
+        setUsageListTotal(data.data.total || 0)
+        setUsageListPage(data.data.page || 1)
       } else {
         setError('获取统计失败')
       }
@@ -227,10 +259,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
-  const loadUsageDetail = async () => {
+  const loadUsageDetail = async (page = 1) => {
     setIsLoadingDetail(true)
     try {
-      const url = currentProject ? `/api/license/usage/detail?project=${currentProject.code}` : '/api/license/usage/detail'
+      const url = currentProject ? `/api/license/usage/detail?project=${currentProject.code}&page=${page}&page_size=${pageSize}` : `/api/license/usage/detail?page=${page}&page_size=${pageSize}`
       const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
@@ -239,6 +271,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       if (res.ok) {
         const data = await res.json()
         setUsageDetail(data.data)
+        setUsageDetailTotal(data.total || 0)
+        setUsageDetailPage(data.page || 1)
       }
     } catch (err) {
       console.error('获取使用明细失败:', err)
@@ -424,25 +458,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       }
     } catch (err) {
       alert('网络错误')
-    }
-  }
-
-  // License Keys management functions
-  const loadLicenseKeys = async () => {
-    setIsLoadingKeys(true)
-    try {
-      const url = currentProject ? `/api/license/keys?project=${currentProject.code}` : '/api/license/keys'
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setLicenseKeys(data.data)
-      }
-    } catch (err) {
-      console.error('加载许可证失败:', err)
-    } finally {
-      setIsLoadingKeys(false)
     }
   }
 
@@ -1462,17 +1477,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               <div style={styles.card}>
                 <div style={styles.cardContent}>
                   {licenseKeys.length > 0 ? (
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th style={styles.th}>许可证</th>
-                          <th style={styles.th}>类型</th>
-                          <th style={styles.th}>状态</th>
-                          <th style={styles.th}>绑定机器</th>
-                          <th style={styles.th}>到期时间</th>
-                          <th style={styles.th}>是否过期</th>
-                          <th style={styles.th}>操作</th>
-                        </tr>
+                    <>
+                      <table style={styles.table}>
+                        <thead>
+                          <tr>
+                            <th style={styles.th}>许可证</th>
+                            <th style={styles.th}>类型</th>
+                            <th style={styles.th}>状态</th>
+                            <th style={styles.th}>绑定机器</th>
+                            <th style={styles.th}>到期时间</th>
+                            <th style={styles.th}>是否过期</th>
+                            <th style={styles.th}>操作</th>
+                          </tr>
                       </thead>
                       <tbody>
                         {licenseKeys.map((k) => (
@@ -1533,6 +1549,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         ))}
                       </tbody>
                     </table>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', marginTop: 8 }}>
+                      <span style={{ fontSize: 13, color: '#666' }}>共 {keysTotal} 条，第 {keysPage}/{Math.ceil(keysTotal / pageSize) || 1} 页</span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => loadLicenseKeys(keysPage - 1)} disabled={keysPage <= 1} style={{ ...styles.actionButton, opacity: keysPage <= 1 ? 0.5 : 1 }}>上一页</button>
+                        <button onClick={() => loadLicenseKeys(keysPage + 1)} disabled={keysPage >= Math.ceil(keysTotal / pageSize)} style={{ ...styles.actionButton, opacity: keysPage >= Math.ceil(keysTotal / pageSize) ? 0.5 : 1 }}>下一页</button>
+                      </div>
+                    </div>
+                    </>
                   ) : (
                     <div style={styles.empty}>暂无许可证，点击"生成许可证"创建</div>
                   )}

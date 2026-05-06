@@ -640,20 +640,31 @@ async def revoke_license(license_key: str) -> dict:
         return {"success": True}
 
 
-async def get_all_license_keys(project: str = None) -> List[dict]:
-    """Get all license keys, optionally filtered by project"""
+async def get_all_license_keys(project: str = None, page: int = 1, page_size: int = 20) -> dict:
+    """Get license keys with pagination, optionally filtered by project"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
+        offset = (page - 1) * page_size
+
+        # Get total count
         if project:
             async with db.execute(
-                """SELECT id, license_key, license_type, project, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
-                   FROM license_keys WHERE project = ? ORDER BY created_at DESC""",
+                "SELECT COUNT(*) FROM license_keys WHERE project = ?",
                 (project,)
+            ) as cursor:
+                total = (await cursor.fetchone())[0]
+            async with db.execute(
+                """SELECT id, license_key, license_type, project, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
+                   FROM license_keys WHERE project = ? ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+                (project, page_size, offset)
             ) as cursor:
                 rows = await cursor.fetchall()
         else:
+            async with db.execute("SELECT COUNT(*) FROM license_keys") as cursor:
+                total = (await cursor.fetchone())[0]
             async with db.execute(
                 """SELECT id, license_key, license_type, project, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
-                   FROM license_keys ORDER BY created_at DESC"""
+                   FROM license_keys ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+                (page_size, offset)
             ) as cursor:
                 rows = await cursor.fetchall()
 
@@ -663,12 +674,9 @@ async def get_all_license_keys(project: str = None) -> List[dict]:
             license_type = r[2]
             expires_at = r[7]
 
-            # Generate auth_code based on current state
-            # If activated, use actual activation time; otherwise use expires_at from creation
-            if r[6]:  # activated_at exists
+            if r[6]:
                 auth_code = encode_auth_code(license_key, license_type, expires_at, r[6])
             else:
-                # Not activated yet - still generate auth_code using expires_at
                 auth_code = encode_auth_code(license_key, license_type, expires_at)
 
             result.append({
@@ -683,9 +691,9 @@ async def get_all_license_keys(project: str = None) -> List[dict]:
                 "revoked": bool(r[8]),
                 "created_at": r[9],
                 "updated_at": r[10],
-                "auth_code": auth_code  # Auth code for display
+                "auth_code": auth_code
             })
-        return result
+        return {"data": result, "total": total}
 
 
 async def get_license_key_stats(project: str = None) -> dict:
@@ -803,8 +811,8 @@ async def save_usage_reports(reports: List[dict]) -> dict:
         return {"success": True, "count": count}
 
 
-async def get_usage_stats(project: str = None) -> dict:
-    """Get usage statistics from new tables, optionally filtered by project"""
+async def get_usage_stats(project: str = None, page: int = 1, page_size: int = 20) -> dict:
+    """Get usage statistics from new tables, optionally filtered by project with pagination"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         # Statistics by address triplet fields (Top 10 + Other)
         def aggregate_top10(data):
@@ -816,9 +824,16 @@ async def get_usage_stats(project: str = None) -> dict:
                 top10.append(('其他', others_sum))
             return top10
 
+        offset = (page - 1) * page_size
+
         if project:
             async with db.execute("SELECT COUNT(*) FROM usage_records WHERE project = ?", (project,)) as cursor:
                 total_machines = (await cursor.fetchone())[0]
+            async with db.execute(
+                """SELECT COUNT(*) FROM usage_records WHERE project = ?""",
+                (project,)
+            ) as cursor:
+                total_count = (await cursor.fetchone())[0]
             async with db.execute(
                 """SELECT country, COUNT(*) as count FROM usage_records WHERE project = ? AND country != ''
                    GROUP BY country ORDER BY count DESC LIMIT 11""",
@@ -839,13 +854,17 @@ async def get_usage_stats(project: str = None) -> dict:
                 by_city_raw = await cursor.fetchall()
             async with db.execute(
                 """SELECT machine_code, public_ip, country, region, city, app_version, os_name, os_version, updated_at
-                   FROM usage_records WHERE project = ? ORDER BY updated_at DESC LIMIT 50""",
-                (project,)
+                   FROM usage_records WHERE project = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?""",
+                (project, page_size, offset)
             ) as cursor:
                 recent_records = await cursor.fetchall()
         else:
             async with db.execute("SELECT COUNT(*) FROM usage_records") as cursor:
                 total_machines = (await cursor.fetchone())[0]
+            async with db.execute(
+                """SELECT COUNT(*) FROM usage_records"""
+            ) as cursor:
+                total_count = (await cursor.fetchone())[0]
             async with db.execute(
                 """SELECT country, COUNT(*) as count FROM usage_records WHERE country != ''
                    GROUP BY country ORDER BY count DESC LIMIT 11"""
@@ -863,7 +882,8 @@ async def get_usage_stats(project: str = None) -> dict:
                 by_city_raw = await cursor.fetchall()
             async with db.execute(
                 """SELECT machine_code, public_ip, country, region, city, app_version, os_name, os_version, updated_at
-                   FROM usage_records ORDER BY updated_at DESC LIMIT 50"""
+                   FROM usage_records ORDER BY updated_at DESC LIMIT ? OFFSET ?""",
+                (page_size, offset)
             ) as cursor:
                 recent_records = await cursor.fetchall()
 
@@ -910,6 +930,7 @@ async def get_usage_stats(project: str = None) -> dict:
 
         return {
             "total_machines": total_machines,
+            "total_count": total_count,
             "by_country": [{"name": r[0], "value": r[1]} for r in by_country],
             "by_region": [{"name": r[0], "value": r[1]} for r in by_region],
             "by_city": [{"name": r[0], "value": r[1]} for r in by_city],
@@ -928,28 +949,43 @@ async def get_usage_stats(project: str = None) -> dict:
                     "updated_at": r[8]
                 }
                 for r in recent_records
-            ]
+            ],
+            "page": page,
+            "page_size": page_size,
+            "total": total_count
         }
 
 
-async def get_usage_detail_records(project: str = None) -> List[dict]:
-    """Get usage detail records, optionally filtered by project"""
+async def get_usage_detail_records(project: str = None, page: int = 1, page_size: int = 20) -> dict:
+    """Get usage detail records, optionally filtered by project with pagination"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
+        offset = (page - 1) * page_size
+
         if project:
             async with db.execute(
-                """SELECT id, project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
-                   FROM usage_detail WHERE project = ? ORDER BY changed_at DESC LIMIT 200""",
+                "SELECT COUNT(*) FROM usage_detail WHERE project = ?",
                 (project,)
+            ) as cursor:
+                total = (await cursor.fetchone())[0]
+            async with db.execute(
+                """SELECT id, project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
+                   FROM usage_detail WHERE project = ? ORDER BY changed_at DESC LIMIT ? OFFSET ?""",
+                (project, page_size, offset)
             ) as cursor:
                 rows = await cursor.fetchall()
         else:
             async with db.execute(
+                "SELECT COUNT(*) FROM usage_detail"
+            ) as cursor:
+                total = (await cursor.fetchone())[0]
+            async with db.execute(
                 """SELECT id, project, machine_code, public_ip, country, region, city, os_name, os_version, changed_at
-                   FROM usage_detail ORDER BY changed_at DESC LIMIT 200"""
+                   FROM usage_detail ORDER BY changed_at DESC LIMIT ? OFFSET ?""",
+                (page_size, offset)
             ) as cursor:
                 rows = await cursor.fetchall()
 
-        return [
+        return {"data": [
             {
                 "id": r[0],
                 "project": r[1],
@@ -963,7 +999,7 @@ async def get_usage_detail_records(project: str = None) -> List[dict]:
                 "changed_at": r[9]
             }
             for r in rows
-        ]
+        ], "total": total}
 
 
 async def delete_usage_record(machine_code: str) -> dict:

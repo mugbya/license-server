@@ -68,10 +68,10 @@ async def report_usage(req: BatchReportRequest):
 
 
 @router.get("/stats")
-async def get_stats(project: str = None, authorization: str = Header(None)):
+async def get_stats(project: str = None, page: int = 1, page_size: int = 20, authorization: str = Header(None)):
     """Get usage statistics (admin only)"""
     await verify_token(authorization)
-    stats = await db.get_usage_stats(project)
+    stats = await db.get_usage_stats(project, page, page_size)
     return {"success": True, "data": stats}
 
 
@@ -101,11 +101,11 @@ async def revoke(license_key: str, authorization: str = Header(None)):
 
 
 @router.get("/keys")
-async def list_keys(project: str = None, authorization: str = Header(None)):
-    """List all license keys (admin only)"""
+async def list_keys(project: str = None, page: int = 1, page_size: int = 20, authorization: str = Header(None)):
+    """List license keys with pagination (admin only)"""
     await verify_token(authorization)
-    keys = await db.get_all_license_keys(project)
-    return {"success": True, "data": keys}
+    result = await db.get_all_license_keys(project, page, page_size)
+    return {"success": True, "data": result["data"], "total": result["total"], "page": page, "page_size": page_size}
 
 
 @router.get("/keys/stats")
@@ -117,11 +117,11 @@ async def get_keys_stats(project: str = None, authorization: str = Header(None))
 
 
 @router.get("/usage/detail")
-async def get_usage_detail(project: str = None, authorization: str = Header(None)):
-    """Get usage detail records (admin only)"""
+async def get_usage_detail(project: str = None, page: int = 1, page_size: int = 20, authorization: str = Header(None)):
+    """Get usage detail records with pagination (admin only)"""
     await verify_token(authorization)
-    records = await db.get_usage_detail_records(project)
-    return {"success": True, "data": records}
+    result = await db.get_usage_detail_records(project, page, page_size)
+    return {"success": True, "data": result["data"], "total": result["total"], "page": page, "page_size": page_size}
 
 
 @router.post("/decode")
