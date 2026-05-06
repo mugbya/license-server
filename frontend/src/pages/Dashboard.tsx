@@ -1808,7 +1808,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       {keysStats.by_type.map((item: any, index: number) => (
                         <tr key={index} style={styles.tr}>
                           <td style={styles.td}>
-                            {item.type === 'year' ? '年度' : item.type === 'permanent' ? '永久' : item.type === 'custom' ? '自定义' : item.type}
+                            {item.type === 'year' ? '年度' : item.type === 'permanent' ? '永久' : item.type === 'custom' ? '自定义' : item.type === 'trial' ? '试用' : item.type}
                           </td>
                           <td style={styles.td}>{item.count}</td>
                         </tr>
