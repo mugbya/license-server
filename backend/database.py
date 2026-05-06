@@ -640,6 +640,25 @@ async def revoke_license(license_key: str) -> dict:
         return {"success": True}
 
 
+async def unbind_license(license_key: str) -> dict:
+    """Unbind a license by clearing machine_code and bound flag"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE license_keys SET machine_code = NULL, bound = 0, activated_at = NULL, updated_at = datetime('now') WHERE license_key = ?",
+            (license_key,)
+        )
+        await db.commit()
+        return {"success": True}
+
+
+async def delete_license_key(license_key: str) -> dict:
+    """Delete a license key completely"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("DELETE FROM license_keys WHERE license_key = ?", (license_key,))
+        await db.commit()
+        return {"success": True}
+
+
 async def get_all_license_keys(project: str = None, page: int = 1, page_size: int = 20) -> dict:
     """Get license keys with pagination, optionally filtered by project"""
     async with aiosqlite.connect(DATABASE_PATH) as db:

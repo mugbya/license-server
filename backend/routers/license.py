@@ -100,6 +100,26 @@ async def revoke(license_key: str, authorization: str = Header(None)):
     raise HTTPException(status_code=400, detail="Failed to revoke key")
 
 
+@router.post("/unbind")
+async def unbind(license_key: str, authorization: str = Header(None)):
+    """Unbind a license by clearing machine code and bound flag"""
+    await verify_token(authorization)
+    result = await db.unbind_license(license_key)
+    if result.get("success"):
+        return {"success": True}
+    raise HTTPException(status_code=400, detail="Failed to unbind key")
+
+
+@router.delete("/key")
+async def delete_key(license_key: str, authorization: str = Header(None)):
+    """Delete a license key completely"""
+    await verify_token(authorization)
+    result = await db.delete_license_key(license_key)
+    if result.get("success"):
+        return {"success": True}
+    raise HTTPException(status_code=400, detail="Failed to delete key")
+
+
 @router.get("/keys")
 async def list_keys(project: str = None, page: int = 1, page_size: int = 20, authorization: str = Header(None)):
     """List license keys with pagination (admin only)"""

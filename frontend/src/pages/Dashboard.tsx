@@ -500,6 +500,44 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }
 
+  const unbindLicenseKey = async (licenseKey: string) => {
+    if (!confirm(`确定要解绑许可证 ${licenseKey} 吗？解绑后将清除绑定的机器码。`)) return
+
+    try {
+      const res = await fetch(`/api/license/unbind?license_key=${encodeURIComponent(licenseKey)}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (res.ok) {
+        loadLicenseKeys()
+      } else {
+        const data = await res.json()
+        alert(data.detail || '解绑失败')
+      }
+    } catch (err) {
+      alert('网络错误')
+    }
+  }
+
+  const deleteLicenseKey = async (licenseKey: string) => {
+    if (!confirm(`确定要删除许可证 ${licenseKey} 吗？此操作不可恢复！`)) return
+
+    try {
+      const res = await fetch(`/api/license/key?license_key=${encodeURIComponent(licenseKey)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+      })
+      if (res.ok) {
+        loadLicenseKeys()
+      } else {
+        const data = await res.json()
+        alert(data.detail || '删除失败')
+      }
+    } catch (err) {
+      alert('网络错误')
+    }
+  }
+
   return (
     <div style={styles.container}>
       {/* 侧边栏 */}
@@ -1534,6 +1572,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                 >
                                   <Edit2 size={16} />
                                 </button>
+                                {!k.revoked && k.bound && (
+                                  <button
+                                    onClick={() => unbindLicenseKey(k.license_key)}
+                                    style={{ ...styles.actionButton, color: '#f97316' }}
+                                    title="解绑"
+                                  >
+                                    <RefreshCw size={16} />
+                                  </button>
+                                )}
                                 {!k.revoked && (
                                   <button
                                     onClick={() => revokeLicenseKey(k.license_key)}
@@ -1543,6 +1590,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                     <X size={16} />
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => deleteLicenseKey(k.license_key)}
+                                  style={{ ...styles.actionButton, color: '#ef4444' }}
+                                  title="删除"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               </div>
                             </td>
                           </tr>
