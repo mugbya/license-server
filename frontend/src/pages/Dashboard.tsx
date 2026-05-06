@@ -71,17 +71,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   // Pagination states
   const [keysPage, setKeysPage] = useState(1)
   const [keysTotal, setKeysTotal] = useState(0)
+  const [keysPageSize, setKeysPageSize] = useState(20)
   const [usageListPage, setUsageListPage] = useState(1)
   const [usageListTotal, setUsageListTotal] = useState(0)
   const [usageDetailPage, setUsageDetailPage] = useState(1)
   const [usageDetailTotal, setUsageDetailTotal] = useState(0)
-  const pageSize = 20
 
   // Load license keys with pagination
   const loadLicenseKeys = async (page = 1) => {
     setIsLoadingKeys(true)
     try {
-      const url = currentProject ? `/api/license/keys?project=${currentProject.code}&page=${page}&page_size=${pageSize}` : `/api/license/keys?page=${page}&page_size=${pageSize}`
+      const url = currentProject ? `/api/license/keys?project=${currentProject.code}&page=${page}&page_size=${keysPageSize}` : `/api/license/keys?page=${page}&page_size=${keysPageSize}`
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
       })
@@ -1603,11 +1603,25 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         ))}
                       </tbody>
                     </table>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', marginTop: 8 }}>
-                      <span style={{ fontSize: 13, color: '#666' }}>共 {keysTotal} 条，第 {keysPage}/{Math.ceil(keysTotal / pageSize) || 1} 页</span>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => loadLicenseKeys(keysPage - 1)} disabled={keysPage <= 1} style={{ ...styles.actionButton, opacity: keysPage <= 1 ? 0.5 : 1 }}>上一页</button>
-                        <button onClick={() => loadLicenseKeys(keysPage + 1)} disabled={keysPage >= Math.ceil(keysTotal / pageSize)} style={{ ...styles.actionButton, opacity: keysPage >= Math.ceil(keysTotal / pageSize) ? 0.5 : 1 }}>下一页</button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', marginTop: 8, flexWrap: 'wrap', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 13, color: '#666' }}>每页</span>
+                        <select
+                          value={keysPageSize}
+                          onChange={(e) => { setKeysPageSize(Number(e.target.value)); setKeysPage(1); loadLicenseKeys(1) }}
+                          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
+                        >
+                          <option value={10}>10 条</option>
+                          <option value={20}>20 条</option>
+                          <option value={50}>50 条</option>
+                          <option value={100}>100 条</option>
+                        </select>
+                        <span style={{ fontSize: 13, color: '#666' }}>共 {keysTotal} 条</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <button onClick={() => loadLicenseKeys(keysPage - 1)} disabled={keysPage <= 1} style={{ ...styles.actionButton, opacity: keysPage <= 1 ? 0.5 : 1, whiteSpace: 'nowrap' }}>上一页</button>
+                        <span style={{ fontSize: 13, color: '#666', padding: '0 8px', whiteSpace: 'nowrap' }}>第 {keysPage}/{Math.ceil(keysTotal / keysPageSize) || 1} 页</span>
+                        <button onClick={() => loadLicenseKeys(keysPage + 1)} disabled={keysPage >= Math.ceil(keysTotal / keysPageSize)} style={{ ...styles.actionButton, opacity: keysPage >= Math.ceil(keysTotal / keysPageSize) ? 0.5 : 1, whiteSpace: 'nowrap' }}>下一页</button>
                       </div>
                     </div>
                     </>
