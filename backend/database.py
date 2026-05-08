@@ -496,6 +496,8 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
 
     The license_key here is the short format (GLY-XXXX-XXXX-XXXX-XXXX).
     Server generates the auth code after activation.
+
+    If the license is already activated (has expires_at), do not regenerate expires_at.
     """
     async with aiosqlite.connect(DATABASE_PATH) as db:
         # Get license by short key
@@ -514,11 +516,14 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
         activated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         expires_at = license["expires_at"]
 
-        if license["license_type"] == "year":
-            expires_at = (datetime.now() + timedelta(days=YEAR_LICENSE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
-        elif license["license_type"] == "trial":
-            expires_at = (datetime.now() + timedelta(minutes=get_trial_minutes())).strftime("%Y-%m-%d %H:%M:%S")
-        # permanent and custom types keep their original expires_at
+        # Only generate new expires_at if not already set (first activation)
+        # Once activated, the expires_at should not change
+        if not expires_at:
+            if license["license_type"] == "year":
+                expires_at = (datetime.now() + timedelta(days=YEAR_LICENSE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+            elif license["license_type"] == "trial":
+                expires_at = (datetime.now() + timedelta(minutes=get_trial_minutes())).strftime("%Y-%m-%d %H:%M:%S")
+            # permanent and custom types remain None (no expiration)
 
         # Generate auth code with RSA encryption
         auth_code = encode_auth_code(license_key, license["license_type"], expires_at, activated_at)
