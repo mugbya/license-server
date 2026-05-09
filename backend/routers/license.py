@@ -189,22 +189,19 @@ async def get_trial(request: Request, machine_code: str):
     # Check if machine already has a trial license
     existing_trial = await db.get_trial_by_machine_code(machine_code)
     if existing_trial:
-        # Generate auth code for existing trial
+        # Re-activate the existing trial license (this will unbind other licenses for this machine)
+        activate_result = await db.activate_license(existing_trial["license_key"], machine_code)
+        if not activate_result.get("success"):
+            raise HTTPException(status_code=500, detail="Failed to reactivate trial license")
         await db.log_usage(machine_code, "trial_reuse", existing_trial["license_key"], client_ip)
-        auth_code = db.encode_auth_code(
-            existing_trial["license_key"],
-            existing_trial["license_type"],
-            existing_trial["expires_at"],
-            existing_trial["activated_at"]
-        )
         return {
             "success": True,
             "data": {
                 "license_key": existing_trial["license_key"],  # Short format for display
-                "auth_code": auth_code,  # RSA encrypted for client verification
+                "auth_code": activate_result.get("auth_code"),  # RSA encrypted for client verification
                 "license_type": existing_trial["license_type"],
-                "activated_at": existing_trial["activated_at"],
-                "expires_at": existing_trial["expires_at"],
+                "activated_at": activate_result.get("activated_at"),
+                "expires_at": activate_result.get("expires_at"),
                 "is_existing": True
             }
         }
@@ -218,7 +215,7 @@ async def get_trial(request: Request, machine_code: str):
 
     trial_key = result.get("license_key")
 
-    # Step 2: Activate with machine code
+    # Step 2: Activate with machine code (this will unbind other licenses for this machine)
     activate_result = await db.activate_license(trial_key, machine_code)
     if not activate_result.get("success"):
         raise HTTPException(status_code=500, detail="Failed to activate trial license")
