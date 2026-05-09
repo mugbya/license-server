@@ -72,6 +72,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [keysPage, setKeysPage] = useState(1)
   const [keysTotal, setKeysTotal] = useState(0)
   const [keysPageSize, setKeysPageSize] = useState(20)
+  const [keysSearch, setKeysSearch] = useState('')
+  const [keysTypeFilter, setKeysTypeFilter] = useState('')
+  const [keysStatusFilter, setKeysStatusFilter] = useState('')
   const [usageListPage, setUsageListPage] = useState(1)
   const [usageListTotal, setUsageListTotal] = useState(0)
   const [usageDetailPage, setUsageDetailPage] = useState(1)
@@ -1664,8 +1667,54 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               <div style={styles.loading}>加载中...</div>
             ) : (
               <div style={styles.card}>
+                <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="搜索许可证、机器码..."
+                    value={keysSearch}
+                    onChange={(e) => setKeysSearch(e.target.value)}
+                    style={{ ...styles.filterInput, width: '200px' }}
+                  />
+                  <select
+                    value={keysTypeFilter}
+                    onChange={(e) => setKeysTypeFilter(e.target.value)}
+                    style={{ ...styles.filterInput, width: '120px' }}
+                  >
+                    <option value="">全部类型</option>
+                    <option value="year">年度</option>
+                    <option value="permanent">永久</option>
+                    <option value="custom">自定义</option>
+                    <option value="trial">试用</option>
+                  </select>
+                  <select
+                    value={keysStatusFilter}
+                    onChange={(e) => setKeysStatusFilter(e.target.value)}
+                    style={{ ...styles.filterInput, width: '120px' }}
+                  >
+                    <option value="">全部状态</option>
+                    <option value="bound">已激活</option>
+                    <option value="unbound">未激活</option>
+                    <option value="revoked">已撤销</option>
+                  </select>
+                  <button
+                    onClick={() => { setKeysSearch(''); setKeysTypeFilter(''); setKeysStatusFilter('') }}
+                    style={{ padding: '10px 16px', border: '1px solid #e0e0e0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 }}
+                  >
+                    重置
+                  </button>
+                </div>
                 <div style={styles.cardContent}>
-                  {licenseKeys.length > 0 ? (
+                  {licenseKeys.filter(k => {
+                    const matchSearch = !keysSearch ||
+                      k.license_key?.toLowerCase().includes(keysSearch.toLowerCase()) ||
+                      k.machine_code?.toLowerCase().includes(keysSearch.toLowerCase())
+                    const matchType = !keysTypeFilter || k.license_type === keysTypeFilter
+                    let matchStatus = true
+                    if (keysStatusFilter === 'bound') matchStatus = k.bound && !k.revoked
+                    else if (keysStatusFilter === 'unbound') matchStatus = !k.bound && !k.revoked
+                    else if (keysStatusFilter === 'revoked') matchStatus = k.revoked
+                    return matchSearch && matchType && matchStatus
+                  }).length > 0 ? (
                     <>
                       <table style={styles.table}>
                         <thead>
@@ -1680,7 +1729,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           </tr>
                       </thead>
                       <tbody>
-                        {licenseKeys.map((k) => (
+                        {licenseKeys.filter(k => {
+                          const matchSearch = !keysSearch ||
+                            k.license_key?.toLowerCase().includes(keysSearch.toLowerCase()) ||
+                            k.machine_code?.toLowerCase().includes(keysSearch.toLowerCase())
+                          const matchType = !keysTypeFilter || k.license_type === keysTypeFilter
+                          let matchStatus = true
+                          if (keysStatusFilter === 'bound') matchStatus = k.bound && !k.revoked
+                          else if (keysStatusFilter === 'unbound') matchStatus = !k.bound && !k.revoked
+                          else if (keysStatusFilter === 'revoked') matchStatus = k.revoked
+                          return matchSearch && matchType && matchStatus
+                        }).map((k) => (
                           <tr key={k.id} style={styles.tr}>
                             <td style={styles.td}>
                               <code style={styles.code}>{k.license_key}</code>
