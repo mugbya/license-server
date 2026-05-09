@@ -168,9 +168,32 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const copyKey = () => {
-    navigator.clipboard.writeText(generatedKey)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(generatedKey)
+    } else {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea')
+      textarea.value = generatedKey
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
     setCopiedJwtKey(true)
     setTimeout(() => setCopiedJwtKey(false), 2000)
+  }
+
+  const copyToClipboard = (text: string) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
   }
 
   const decodeLicense = async () => {
@@ -909,7 +932,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       <div style={styles.resultLabel}>许可证（短格式）：</div>
                       <div style={styles.resultKey}>
                         <code style={{ fontSize: '18px', letterSpacing: '1px' }}>{generatedLicenseKey}</code>
-                        <button onClick={() => { navigator.clipboard.writeText(generatedLicenseKey); setCopiedLicenseKey(true); setTimeout(() => setCopiedLicenseKey(false), 2000); }} style={styles.copyButton}>
+                        <button onClick={() => { copyToClipboard(generatedLicenseKey); setCopiedLicenseKey(true); setTimeout(() => setCopiedLicenseKey(false), 2000); }} style={styles.copyButton}>
                           {copiedLicenseKey ? <Check size={18} /> : <Copy size={18} />}
                           <span>{copiedLicenseKey ? '已复制' : '复制'}</span>
                         </button>
