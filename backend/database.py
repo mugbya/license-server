@@ -656,6 +656,19 @@ async def unbind_license(license_key: str) -> dict:
         return {"success": True}
 
 
+async def revoke_other_licenses(machine_code: str, keep_license_key: str) -> dict:
+    """Revoke all licenses for a machine except the specified one (used for trial license)"""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            """UPDATE license_keys
+               SET revoked = 1, updated_at = datetime('now')
+               WHERE machine_code = ? AND license_key != ?""",
+            (machine_code, keep_license_key)
+        )
+        await db.commit()
+        return {"success": True}
+
+
 async def delete_license_key(id: int) -> dict:
     """Delete a license key completely by ID"""
     async with aiosqlite.connect(DATABASE_PATH) as db:

@@ -189,6 +189,8 @@ async def get_trial(request: Request, machine_code: str):
     # Check if machine already has a trial license
     existing_trial = await db.get_trial_by_machine_code(machine_code)
     if existing_trial:
+        # Revoke other licenses for this machine (except the trial)
+        await db.revoke_other_licenses(machine_code, existing_trial["license_key"])
         # Re-activate the existing trial license (this will unbind other licenses for this machine)
         activate_result = await db.activate_license(existing_trial["license_key"], machine_code)
         if not activate_result.get("success"):
