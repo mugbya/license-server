@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from database import init_db
 from routers.license import router as license_router
 from routers.admin import router as admin_router
@@ -9,6 +10,7 @@ import logging
 import os
 import time
 import uuid
+import traceback
 from logging.handlers import TimedRotatingFileHandler
 
 # Import config
@@ -111,6 +113,18 @@ app.add_middleware(
 app.include_router(license_router, prefix="/api/license", tags=["license"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 app.include_router(projects_router, prefix="/api/projects", tags=["projects"])
+
+
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    error_msg = f"{type(exc).__name__}: {str(exc)}"
+    logger.error(f"Unhandled exception: {error_msg}")
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": error_msg}
+    )
 
 
 @app.on_event("startup")

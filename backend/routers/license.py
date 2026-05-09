@@ -186,52 +186,61 @@ async def get_trial(request: Request, machine_code: str):
     """
     client_ip = request.client.host if request.client else None
 
-    # Check if machine already has a trial license
-    existing_trial = await db.get_trial_by_machine_code(machine_code)
-    if existing_trial:
-        # Revoke other licenses for this machine (except the trial)
-        await db.revoke_other_licenses(machine_code, existing_trial["license_key"])
-        # Re-activate the existing trial license (this will unbind other licenses for this machine)
-        activate_result = await db.activate_license(existing_trial["license_key"], machine_code)
+    try:
+        # Check if machine already has a trial license
+        existing_trial = await db.get_trial_by_machine_code(machine_code)
+        if existing_trial:
+            # Revoke other licenses for this machine (except the trial)
+            await db.revoke_other_licenses(machine_code, existing_trial["license_key"])
+            # Re-activate the existing trial license (this will unbind other licenses for this machine)
+            activate_result = await db.activate_license(existing_trial["license_key"], machine_code)
+            if not activate_result.get("success"):
+                logger.error(f"Trial activation failed: {activate_result.get('error')}")
+                raise HTTPException(status_code=500, detail=activate_result.get("error", "Failed to reactivate trial license"))
+            await db.log_usage(machine_code, "trial_reuse", existing_trial["license_key"], client_ip)
+            return {
+                "success": True,
+                "data": {
+                    "license_key": existing_trial["license_key"],  # Short format for display
+                    "auth_code": activate_result.get("auth_code"),  # RSA encrypted for client verification
+                    "license_type": existing_trial["license_type"],
+                    "activated_at": activate_result.get("activated_at"),
+                    "expires_at": activate_result.get("expires_at"),
+                    "is_existing": True
+                }
+            }
+
+        # Create new trial license
+        # Step 1: Create short license key in database
+        result = await db.create_license_key("trial", "zupu")
+
+        if not result.get("success"):
+            logger.error(f"Trial creation failed: {result.get('error')}")
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to create trial license"))
+
+        trial_key = result.get("license_key")
+
+        # Step 2: Activate with machine code (this will unbind other licenses for this machine)
+        activate_result = await db.activate_license(trial_key, machine_code)
         if not activate_result.get("success"):
-            raise HTTPException(status_code=500, detail="Failed to reactivate trial license")
-        await db.log_usage(machine_code, "trial_reuse", existing_trial["license_key"], client_ip)
+            logger.error(f"Trial activation failed: {activate_result.get('error')}")
+            raise HTTPException(status_code=500, detail="Failed to activate trial license")
+
+        await db.log_usage(machine_code, "trial_create", trial_key, client_ip)
+
         return {
             "success": True,
             "data": {
-                "license_key": existing_trial["license_key"],  # Short format for display
+                "license_key": trial_key,  # Short format for display
                 "auth_code": activate_result.get("auth_code"),  # RSA encrypted for client verification
-                "license_type": existing_trial["license_type"],
+                "license_type": "trial",
                 "activated_at": activate_result.get("activated_at"),
                 "expires_at": activate_result.get("expires_at"),
-                "is_existing": True
+                "is_existing": False
             }
         }
-
-    # Create new trial license
-    # Step 1: Create short license key in database
-    result = await db.create_license_key("trial", "zupu")
-
-    if not result.get("success"):
-        raise HTTPException(status_code=500, detail=result.get("error", "Failed to create trial license"))
-
-    trial_key = result.get("license_key")
-
-    # Step 2: Activate with machine code (this will unbind other licenses for this machine)
-    activate_result = await db.activate_license(trial_key, machine_code)
-    if not activate_result.get("success"):
-        raise HTTPException(status_code=500, detail="Failed to activate trial license")
-
-    await db.log_usage(machine_code, "trial_create", trial_key, client_ip)
-
-    return {
-        "success": True,
-        "data": {
-            "license_key": trial_key,  # Short format for display
-            "auth_code": activate_result.get("auth_code"),  # RSA encrypted for client verification
-            "license_type": "trial",
-            "activated_at": activate_result.get("activated_at"),
-            "expires_at": activate_result.get("expires_at"),
-            "is_existing": False
-        }
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Trial endpoint error: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
