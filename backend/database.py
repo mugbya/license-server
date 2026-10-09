@@ -448,7 +448,7 @@ async def init_db():
 async def get_license_by_key(license_key: str) -> Optional[dict]:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute(
-            """SELECT id, license_key, license_type, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
+            """SELECT id, license_key, license_type, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at, project
                FROM license_keys WHERE license_key = ?""",
             (license_key,)
         ) as cursor:
@@ -465,7 +465,11 @@ async def get_license_by_key(license_key: str) -> Optional[dict]:
                 "expires_at": row[6],
                 "revoked": row[7],
                 "created_at": row[8],
-                "updated_at": row[9]
+                "updated_at": row[9],
+                # project 必须查出来：activate/verify 签发 auth_code 时用它写进
+                # JWT 的 prj，漏了会被 .get("project", "zupu") 兜底成 zupu，
+                # 导致其他项目的客户端（如 rtpshark）拒绝该授权
+                "project": row[10]
             }
         return None
 
