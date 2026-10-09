@@ -177,21 +177,24 @@ async def delete_usage_detail(id: int, authorization: str = Header(None)):
 
 
 @router.post("/trial")
-async def get_trial(request: Request, machine_code: str):
+async def get_trial(request: Request, machine_code: str, project: str = "zupu"):
     """Get or create trial license for a machine code (no auth required).
 
     Client calls this on first startup to get a trial license.
     Server generates short license key, auto-activates with machine code,
     and returns auth_code for client local verification.
+    project: 项目编码（zupu/rtpshark...），试用按项目隔离，同一台机器
+    每个项目各自一份试用，互不吊销。
     """
     client_ip = request.client.host if request.client else None
 
     try:
-        # Check if machine already has a trial license
-        existing_trial = await db.get_trial_by_machine_code(machine_code)
+        # Check if machine already has a trial license (within this project)
+        existing_trial = await db.get_trial_by_machine_code(machine_code, project)
         if existing_trial:
-            # Revoke other licenses for this machine (except the trial)
-            await db.revoke_other_licenses(machine_code, existing_trial["license_key"])
+            # Revoke other licenses for this machine (except the trial),
+            # 只吊销同项目的其他授权，不影响同一机器上其他产品的授权
+            await db.revoke_other_licenses(machine_code, existing_trial["license_key"], project)
             # Re-activate the existing trial license (this will unbind other licenses for this machine)
             activate_result = await db.activate_license(existing_trial["license_key"], machine_code)
             if not activate_result.get("success"):
@@ -212,7 +215,7 @@ async def get_trial(request: Request, machine_code: str):
 
         # Create new trial license
         # Step 1: Create short license key in database
-        result = await db.create_license_key("trial", "zupu")
+        result = await db.create_license_key("trial", project)
 
         if not result.get("success"):
             logger.error(f"Trial creation failed: {result.get('error')}")

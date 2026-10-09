@@ -147,12 +147,12 @@ def get_trial_minutes() -> int:
     return value  # default to value as minutes
 
 
-def encode_auth_code(license_key: str, license_type: str, expires_at: str = None, start_at: str = None, jti: str = None) -> str:
+def encode_auth_code(license_key: str, license_type: str, expires_at: str = None, start_at: str = None, jti: str = None, project: str = None) -> str:
     """Encode authorization code in JWT format (RS256).
 
     This creates the "授权码" that clients use for local verification.
     Format: GLY-{base64url(header)}.base64url(payload).base64url(signature)}
-    JWT Payload contains: {"exp": timestamp, "jti": uuid, "start_at": datetime}
+    JWT Payload contains: {"exp": timestamp, "jti": uuid, "start_at": datetime, "prj": project}
 
     Args:
         license_key: The short license key (GLY-XXXX-XXXX-XXXX-XXXX)
@@ -160,6 +160,7 @@ def encode_auth_code(license_key: str, license_type: str, expires_at: str = None
         expires_at: Expiration datetime string (None for permanent)
         start_at: Activation datetime string (None = current time)
         jti: JWT ID for unique identification (None = auto generate uuid)
+        project: 项目编码（如 zupu/rtpshark），客户端用它做跨产品授权隔离
 
     Returns:
         Encoded auth code string in JWT format
@@ -196,6 +197,10 @@ def encode_auth_code(license_key: str, license_type: str, expires_at: str = None
         "jti": jti,
         "start_at": start_at
     }
+    # 项目标识：客户端验签后校验 prj 是否属于本产品，实现跨产品授权隔离。
+    # 旧签发的 token 没有 prj 字段，老客户端不受影响（忽略未知字段）。
+    if project:
+        payload["prj"] = project
 
     # Encode header and payload as base64url
     header_b64 = base64.urlsafe_b64encode(json.dumps(header, separators=(',', ':')).encode()).decode().rstrip('=')
@@ -465,14 +470,18 @@ async def get_license_by_key(license_key: str) -> Optional[dict]:
         return None
 
 
-async def get_trial_by_machine_code(machine_code: str) -> Optional[dict]:
-    """Get trial license for a specific machine code"""
+async def get_trial_by_machine_code(machine_code: str, project: str = None) -> Optional[dict]:
+    """Get trial license for a specific machine code.
+    project 提供时按项目过滤（同一机器各项目的试用相互独立）；
+    不传保持旧行为（任意项目），兼容老调用方。"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        async with db.execute(
-            """SELECT id, license_key, license_type, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
-               FROM license_keys WHERE machine_code = ? AND license_type = 'trial'""",
-            (machine_code,)
-        ) as cursor:
+        sql = """SELECT id, license_key, license_type, machine_code, bound, activated_at, expires_at, revoked, created_at, updated_at
+                 FROM license_keys WHERE machine_code = ? AND license_type = 'trial'"""
+        params = [machine_code]
+        if project:
+            sql += " AND project = ?"
+            params.append(project)
+        async with db.execute(sql, params) as cursor:
             row = await cursor.fetchone()
 
         if row:
@@ -526,7 +535,8 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
             # permanent and custom types remain None (no expiration)
 
         # Generate auth code with RSA encryption
-        auth_code = encode_auth_code(license_key, license["license_type"], expires_at, activated_at)
+        auth_code = encode_auth_code(license_key, license["license_type"], expires_at, activated_at,
+                                     project=license.get("project", "zupu"))
 
         # Unbind any other licenses bound to this machine (for the same project)
         # This ensures one machine can only have one active binding at a time
@@ -582,7 +592,8 @@ async def verify_license(machine_code: str, license_key: str) -> dict:
                 return {"valid": False, "error": "授权已过期"}
 
         # Generate auth code for client
-        auth_code = encode_auth_code(license_key, license["license_type"], license["expires_at"], license["activated_at"])
+        auth_code = encode_auth_code(license_key, license["license_type"], license["expires_at"], license["activated_at"],
+                                     project=license.get("project", "zupu"))
 
         return {
             "valid": True,
@@ -619,7 +630,7 @@ async def create_license_key(license_type: str, project: str = "zupu", expires_a
 
         # Generate auth_code for this license (未激活状态下生成，但只在激活时才使用)
         # 这里生成的是预授权码，实际使用时由activate_license重新生成
-        auth_code = encode_auth_code(license_key, license_type, final_expires_at)
+        auth_code = encode_auth_code(license_key, license_type, final_expires_at, project=project)
 
         await db.execute(
             "INSERT INTO license_keys (license_key, license_type, project, expires_at) VALUES (?, ?, ?, ?)",
@@ -656,15 +667,19 @@ async def unbind_license(license_key: str) -> dict:
         return {"success": True}
 
 
-async def revoke_other_licenses(machine_code: str, keep_license_key: str) -> dict:
-    """Revoke all licenses for a machine except the specified one (used for trial license)"""
+async def revoke_other_licenses(machine_code: str, keep_license_key: str, project: str = None) -> dict:
+    """Revoke all licenses for a machine except the specified one (used for trial license).
+    project 提供时只吊销同项目的授权——同一台机器可能装了多个产品，
+    一个产品申请试用不能吊销另一个产品的正式授权。"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        await db.execute(
-            """UPDATE license_keys
-               SET revoked = 1, updated_at = datetime('now')
-               WHERE machine_code = ? AND license_key != ?""",
-            (machine_code, keep_license_key)
-        )
+        sql = """UPDATE license_keys
+                 SET revoked = 1, updated_at = datetime('now')
+                 WHERE machine_code = ? AND license_key != ?"""
+        params = [machine_code, keep_license_key]
+        if project:
+            sql += " AND project = ?"
+            params.append(project)
+        await db.execute(sql, params)
         await db.commit()
         return {"success": True}
 
@@ -712,9 +727,9 @@ async def get_all_license_keys(project: str = None, page: int = 1, page_size: in
             expires_at = r[7]
 
             if r[6]:
-                auth_code = encode_auth_code(license_key, license_type, expires_at, r[6])
+                auth_code = encode_auth_code(license_key, license_type, expires_at, r[6], project=r[3])
             else:
-                auth_code = encode_auth_code(license_key, license_type, expires_at)
+                auth_code = encode_auth_code(license_key, license_type, expires_at, project=r[3])
 
             result.append({
                 "id": r[0],
