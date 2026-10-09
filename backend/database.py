@@ -147,12 +147,12 @@ def get_trial_minutes() -> int:
     return value  # default to value as minutes
 
 
-def encode_auth_code(license_key: str, license_type: str, expires_at: str = None, start_at: str = None, jti: str = None, project: str = None) -> str:
+def encode_auth_code(license_key: str, license_type: str, expires_at: str = None, start_at: str = None, jti: str = None, project: str = None, mc: str = None) -> str:
     """Encode authorization code in JWT format (RS256).
 
     This creates the "授权码" that clients use for local verification.
     Format: GLY-{base64url(header)}.base64url(payload).base64url(signature)}
-    JWT Payload contains: {"exp": timestamp, "jti": uuid, "start_at": datetime, "prj": project}
+    JWT Payload contains: {"exp": timestamp, "jti": uuid, "start_at": datetime, "prj": project, "mc": machine_code}
 
     Args:
         license_key: The short license key (GLY-XXXX-XXXX-XXXX-XXXX)
@@ -161,6 +161,8 @@ def encode_auth_code(license_key: str, license_type: str, expires_at: str = None
         start_at: Activation datetime string (None = current time)
         jti: JWT ID for unique identification (None = auto generate uuid)
         project: 项目编码（如 zupu/rtpshark），客户端用它做跨产品授权隔离
+        mc: 机器码，签进凭证做机器绑定——凭证拷到别的机器无法通过校验
+            （防「拷 license.json 共享授权」和「伪造机器码刷试用再搬凭证」）
 
     Returns:
         Encoded auth code string in JWT format
@@ -201,6 +203,9 @@ def encode_auth_code(license_key: str, license_type: str, expires_at: str = None
     # 旧签发的 token 没有 prj 字段，老客户端不受影响（忽略未知字段）。
     if project:
         payload["prj"] = project
+    # 机器绑定：客户端校验 mc 与本机机器码一致（同 prj，老客户端忽略未知字段）
+    if mc:
+        payload["mc"] = mc
 
     # Encode header and payload as base64url
     header_b64 = base64.urlsafe_b64encode(json.dumps(header, separators=(',', ':')).encode()).decode().rstrip('=')
@@ -538,9 +543,9 @@ async def activate_license(license_key: str, machine_code: str) -> dict:
                 expires_at = (datetime.now() + timedelta(minutes=get_trial_minutes())).strftime("%Y-%m-%d %H:%M:%S")
             # permanent and custom types remain None (no expiration)
 
-        # Generate auth code with RSA encryption
+        # Generate auth code with RSA encryption（绑定到激活的机器）
         auth_code = encode_auth_code(license_key, license["license_type"], expires_at, activated_at,
-                                     project=license.get("project", "zupu"))
+                                     project=license.get("project", "zupu"), mc=machine_code)
 
         # Unbind any other licenses bound to this machine (for the same project)
         # This ensures one machine can only have one active binding at a time
@@ -595,9 +600,9 @@ async def verify_license(machine_code: str, license_key: str) -> dict:
             if expires_dt < datetime.now():
                 return {"valid": False, "error": "授权已过期"}
 
-        # Generate auth code for client
+        # Generate auth code for client（绑定到验证的机器）
         auth_code = encode_auth_code(license_key, license["license_type"], license["expires_at"], license["activated_at"],
-                                     project=license.get("project", "zupu"))
+                                     project=license.get("project", "zupu"), mc=machine_code)
 
         return {
             "valid": True,
@@ -731,9 +736,9 @@ async def get_all_license_keys(project: str = None, page: int = 1, page_size: in
             expires_at = r[7]
 
             if r[6]:
-                auth_code = encode_auth_code(license_key, license_type, expires_at, r[6], project=r[3])
+                auth_code = encode_auth_code(license_key, license_type, expires_at, r[6], project=r[3], mc=r[4])
             else:
-                auth_code = encode_auth_code(license_key, license_type, expires_at, project=r[3])
+                auth_code = encode_auth_code(license_key, license_type, expires_at, project=r[3], mc=r[4])
 
             result.append({
                 "id": r[0],

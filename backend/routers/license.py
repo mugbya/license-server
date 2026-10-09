@@ -15,6 +15,11 @@ logger = logging.getLogger("license_server")
 
 router = APIRouter()
 
+# 试用防刷：同一公网 IP 每天最多申请的试用次数（出口 NAT 的公司多台机器
+# 共享一个 IP，阈值不能是 1；正常用户装一台只会触发 1 次）
+TRIAL_PER_IP_DAILY = 10
+_trial_ip_counter: dict = {}  # {ip: (date_str, count)}
+
 class DecodeLicenseRequest(BaseModel):
     license_code: str
 
@@ -187,6 +192,20 @@ async def get_trial(request: Request, machine_code: str, project: str = "zupu"):
     每个项目各自一份试用，互不吊销。
     """
     client_ip = request.client.host if request.client else None
+
+    # 试用防刷：客户端本地机器码是硬件指纹（删文件/重装不变），正常用户
+    # 每台机器只会申请一次；超频说明有人在用随机机器码刷试用，直接拒绝
+    if client_ip:
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        ip_date, ip_count = _trial_ip_counter.get(client_ip, ("", 0))
+        if ip_date != today:
+            _trial_ip_counter[client_ip] = (today, 0)
+            ip_count = 0
+        if ip_count >= TRIAL_PER_IP_DAILY:
+            logger.warning(f"Trial rate limited: ip={client_ip}")
+            raise HTTPException(status_code=429, detail="试用申请过于频繁，请联系客服")
+        _trial_ip_counter[client_ip] = (today, ip_count + 1)
 
     try:
         # Check if machine already has a trial license (within this project)
