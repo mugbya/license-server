@@ -333,7 +333,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, show: false }))
         try {
-          const res = await fetch(`/api/license/usage/record/${machine_code}`, {
+          const res = await fetch(`/api/license/usage/record/${machine_code}${currentProject ? `?project=${currentProject.code}` : ''}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('admin_token')}`

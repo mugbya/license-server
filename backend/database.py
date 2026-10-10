@@ -357,12 +357,14 @@ async def init_db():
             )
         """)
 
-        # Usage records table (aggregated by machine_code)
+        # Usage records table (aggregated by machine_code per project:
+        # 多产品共用一台机器时机器码相同，必须按 (project, machine_code) 唯一，
+        # 否则后接入产品的上报会被已有记录吞掉，使用统计按项目过滤时就是空的)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS usage_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project TEXT NOT NULL DEFAULT 'zupu',
-                machine_code TEXT NOT NULL UNIQUE,
+                machine_code TEXT NOT NULL,
                 public_ip TEXT,
                 country TEXT,
                 region TEXT,
@@ -370,9 +372,43 @@ async def init_db():
                 app_version TEXT,
                 os_name TEXT,
                 os_version TEXT,
-                updated_at TEXT DEFAULT (datetime('now'))
+                updated_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(project, machine_code)
             )
         """)
+
+        # 迁移：旧表 machine_code 单列 UNIQUE → (project, machine_code) 复合唯一。
+        # SQLite 改不了约束，只能重建；同机器码多产品的存量库只有一条旧记录，
+        # 复制过去不冲突，另一产品的记录等下次上报自动补上。
+        async with db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='usage_records'"
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row and "machine_code TEXT NOT NULL UNIQUE" in (row[0] or ""):
+            await db.execute("""
+                CREATE TABLE usage_records_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project TEXT NOT NULL DEFAULT 'zupu',
+                    machine_code TEXT NOT NULL,
+                    public_ip TEXT,
+                    country TEXT,
+                    region TEXT,
+                    city TEXT,
+                    app_version TEXT,
+                    os_name TEXT,
+                    os_version TEXT,
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(project, machine_code)
+                )
+            """)
+            await db.execute("""
+                INSERT INTO usage_records_new
+                    (id, project, machine_code, public_ip, country, region, city, app_version, os_name, os_version, updated_at)
+                SELECT id, project, machine_code, public_ip, country, region, city, app_version, os_name, os_version, updated_at
+                FROM usage_records
+            """)
+            await db.execute("DROP TABLE usage_records")
+            await db.execute("ALTER TABLE usage_records_new RENAME TO usage_records")
 
         # Usage detail table (location change history)
         await db.execute("""
@@ -804,8 +840,8 @@ async def log_usage(machine_code: str, action: str, license_key: str = None, ip_
 async def save_usage_reports(reports: List[dict]) -> dict:
     """Save batch usage reports with dedup logic.
 
-    Logic:
-    - First report (machine_code not found) -> insert into both tables
+    Logic (per project — 多产品共用一台机器时机器码相同，必须按项目分开):
+    - First report ((project, machine_code) not found) -> insert into both tables
     - Subsequent report:
         - IP changed or location changed -> update usage_records + insert usage_detail
         - Same -> do nothing
@@ -826,10 +862,10 @@ async def save_usage_reports(reports: List[dict]) -> dict:
             if not machine_code:
                 continue
 
-            # Check if record exists in usage_records (by machine_code only)
+            # Check if record exists in usage_records (by project + machine_code)
             async with db.execute(
-                "SELECT id, public_ip, country, region, city FROM usage_records WHERE machine_code = ?",
-                (machine_code,)
+                "SELECT id, public_ip, country, region, city FROM usage_records WHERE machine_code = ? AND project = ?",
+                (machine_code, project)
             ) as cursor:
                 existing = await cursor.fetchone()
 
@@ -857,8 +893,8 @@ async def save_usage_reports(reports: List[dict]) -> dict:
                     # Update usage_records + insert usage_detail
                     await db.execute(
                         """UPDATE usage_records SET public_ip = ?, country = ?, region = ?, city = ?, app_version = ?, os_name = ?, os_version = ?, updated_at = datetime('now')
-                           WHERE machine_code = ?""",
-                        (public_ip, country, region, city, app_version, os_name, os_version, machine_code)
+                           WHERE machine_code = ? AND project = ?""",
+                        (public_ip, country, region, city, app_version, os_name, os_version, machine_code, project)
                     )
                     await db.execute(
                         """INSERT INTO usage_detail (project, machine_code, public_ip, country, region, city, os_name, os_version)
@@ -1063,13 +1099,26 @@ async def get_usage_detail_records(project: str = None, page: int = 1, page_size
         ], "total": total}
 
 
-async def delete_usage_record(machine_code: str) -> dict:
-    """Delete usage record by machine code"""
+async def delete_usage_record(machine_code: str, project: str = None) -> dict:
+    """Delete usage record by machine code（project 提供时只删该产品的记录：
+    同一机器码在 usage_records 里按项目各有一行）"""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         # Delete from usage_records
-        await db.execute("DELETE FROM usage_records WHERE machine_code = ?", (machine_code,))
+        if project:
+            await db.execute(
+                "DELETE FROM usage_records WHERE machine_code = ? AND project = ?",
+                (machine_code, project),
+            )
+        else:
+            await db.execute("DELETE FROM usage_records WHERE machine_code = ?", (machine_code,))
         # Delete related detail records
-        await db.execute("DELETE FROM usage_detail WHERE machine_code = ?", (machine_code,))
+        if project:
+            await db.execute(
+                "DELETE FROM usage_detail WHERE machine_code = ? AND project = ?",
+                (machine_code, project),
+            )
+        else:
+            await db.execute("DELETE FROM usage_detail WHERE machine_code = ?", (machine_code,))
         await db.commit()
         return {"success": True}
 

@@ -162,10 +162,10 @@ async def decode_license(req: DecodeLicenseRequest, authorization: str = Header(
 
 
 @router.delete("/usage/record/{machine_code}")
-async def delete_usage_record(machine_code: str, authorization: str = Header(None)):
-    """Delete usage record by machine code (admin only)"""
+async def delete_usage_record(machine_code: str, project: str = None, authorization: str = Header(None)):
+    """Delete usage record by machine code (admin only); project 提供时只删该产品的记录"""
     await verify_token(authorization)
-    result = await db.delete_usage_record(machine_code)
+    result = await db.delete_usage_record(machine_code, project)
     if result.get("success"):
         return {"success": True}
     raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
