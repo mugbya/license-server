@@ -59,6 +59,28 @@ Access the service at `http://localhost:8080`
 
 Default credentials: `admin` / `admin123` (change after first login)
 
+### 5. Frontend Local Development (Optional)
+
+In production, the frontend is served directly by the backend (the built `frontend/dist`). Only start it separately when developing frontend pages.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open `http://localhost:9527`
+
+- The frontend dev server (Vite) runs on port **9527** with hot reload
+- Vite is configured with a proxy: all `/api/*` requests are forwarded to `http://localhost:8080`, so the **backend must be running first**
+- Frontend settings (port, proxy target) live in `frontend/vite.config.ts`
+
+Production build:
+
+```bash
+npm run build   # outputs to frontend/dist
+```
+
 ## API Endpoints
 
 ### License Management

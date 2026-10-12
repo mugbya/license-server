@@ -35,6 +35,14 @@ class CreateLicenseKeyRequest(BaseModel):
     expires_at: Optional[str] = None  # 自定义到期时间，格式: 'YYYY-MM-DD HH:MM:SS'，为空则按 license_type 自动计算
 
 
+class CreateOfflineRequest(BaseModel):
+    """离线授权（网络隔绝环境）：按客户端导出的申请文件签发授权包"""
+    license_type: str
+    project: str = "zupu"
+    machine_code: str  # 客户端「导出申请文件」里的机器码
+    expires_at: Optional[str] = None  # 自定义到期时间，为空则按 license_type 自动计算
+
+
 class CreateProjectRequest(BaseModel):
     name: str
     code: str

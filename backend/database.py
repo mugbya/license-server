@@ -691,6 +691,43 @@ async def create_license_key(license_type: str, project: str = "zupu", expires_a
         }
 
 
+async def create_offline_license(license_type: str, project: str, machine_code: str, expires_at: str = None) -> dict:
+    """为网络隔绝环境签发离线授权包。
+
+    入库一条带 machine_code 的记录（后台可查账、可吊销），同时直接签发
+    绑定该机器码的 auth_code 打包返回。客户把授权包内容保存为文件，
+    在客户端「导入授权文件」完成离线授权；包与目标机器强绑定（mc），
+    拷到别的机器无法使用。切换电脑 = 用新机器码重新签发，旧机器的包
+    用到自己的到期时间为止（离线无法远程撤销，见 README 说明）。
+    """
+    if not machine_code or len(machine_code) < 16:
+        return {"success": False, "error": "缺少有效的机器码"}
+
+    result = await create_license_key(license_type, project, expires_at)
+    if not result.get("success"):
+        return result
+    license_key = result["license_key"]
+    final_expires = result.get("expires_at")
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE license_keys SET machine_code = ?, bound = 1 WHERE license_key = ?",
+            (machine_code, license_key),
+        )
+        await db.commit()
+
+    auth_code = encode_auth_code(license_key, license_type, final_expires, project=project, mc=machine_code)
+    return {
+        "success": True,
+        "package": {
+            "v": 1,
+            "license_key": license_key,
+            "license_type": license_type,
+            "auth_code": auth_code,
+        },
+    }
+
+
 async def revoke_license(license_key: str) -> dict:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(

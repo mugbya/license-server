@@ -3,6 +3,7 @@ from models import (
     ActivateLicenseRequest,
     VerifyLicenseRequest,
     CreateLicenseKeyRequest,
+    CreateOfflineRequest,
     BatchReportRequest
 )
 from pydantic import BaseModel
@@ -93,6 +94,21 @@ async def create_key(req: CreateLicenseKeyRequest, authorization: str = Header(N
             "expires_at": result.get("expires_at")
         }
     raise HTTPException(status_code=400, detail=result.get("error", "Failed to create key"))
+
+
+@router.post("/create_offline")
+async def create_offline(req: CreateOfflineRequest, authorization: str = Header(None)):
+    """为网络隔绝环境签发离线授权包（admin only）。
+
+    machine_code 来自客户端「导出申请文件」；返回的 package JSON 由客户
+    保存为文件，在客户端「导入授权文件」完成授权。"""
+    await verify_token(authorization)
+    result = await db.create_offline_license(
+        req.license_type, req.project, req.machine_code.strip(), req.expires_at
+    )
+    if result.get("success"):
+        return {"success": True, "package": result["package"]}
+    raise HTTPException(status_code=400, detail=result.get("error", "Failed to create offline license"))
 
 
 @router.post("/revoke")

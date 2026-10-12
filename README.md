@@ -60,6 +60,28 @@ python main.py
 
 默认账号：`admin` / `admin123`（首次登录后请修改）
 
+### 5. 前端本地开发（可选）
+
+生产环境下前端由后端直接托管（构建后的 `frontend/dist`），仅在开发前端页面时需要单独启动。
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+启动后访问 `http://localhost:9527`
+
+- 前端开发服务器（Vite）运行在 **9527** 端口，支持热更新
+- Vite 已配置代理：页面中所有 `/api/*` 请求自动转发到 `http://localhost:8080`，因此需要**先启动后端**再启动前端
+- 前后端配置位于 `frontend/vite.config.ts`（端口、代理目标）
+
+生产构建：
+
+```bash
+npm run build   # 输出到 frontend/dist
+```
+
 ## API 接口
 
 ### 授权管理

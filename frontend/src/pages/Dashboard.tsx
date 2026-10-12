@@ -40,6 +40,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [decodeResult, setDecodeResult] = useState<any>(null)
   const [decodeError, setDecodeError] = useState('')
 
+  const [offlineMachineCode, setOfflineMachineCode] = useState('')
+  const [offlinePackage, setOfflinePackage] = useState('')
+  const [isCreatingOffline, setIsCreatingOffline] = useState(false)
+  const [offlineError, setOfflineError] = useState('')
+  const [copiedOffline, setCopiedOffline] = useState(false)
+
   // License keys management
   const [licenseKeys, setLicenseKeys] = useState<any[]>([])
   const [keysStats, setKeysStats] = useState<any>(null)
@@ -196,6 +202,59 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       textarea.select()
       document.execCommand('copy')
       document.body.removeChild(textarea)
+    }
+  }
+
+  // 离线授权包下载为 JSON 文件，发给客户导入桌面端
+  const downloadOfflinePackage = () => {
+    if (!offlinePackage) return
+    let licenseKey = 'license'
+    try {
+      const parsed = JSON.parse(offlinePackage)
+      if (parsed.license_key) licenseKey = parsed.license_key
+    } catch { /* 用默认文件名 */ }
+    const blob = new Blob([offlinePackage], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `offline-${licenseKey}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // 离线授权签发：授权类型复用上方的选择器（year/permanent/custom）
+  const createOfflinePackage = async () => {
+    setIsCreatingOffline(true)
+    setOfflineError('')
+    setOfflinePackage('')
+    try {
+      let expiresAt: string | null = null
+      if (licenseType === 'custom' && customExpiry) {
+        expiresAt = customExpiry.replace('T', ' ') + ':00'
+      }
+      const res = await fetch('/api/license/create_offline', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        },
+        body: JSON.stringify({
+          license_type: licenseType,
+          project: currentProject?.code || 'zupu',
+          machine_code: offlineMachineCode.trim(),
+          expires_at: expiresAt
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setOfflinePackage(JSON.stringify(data.package))
+      } else {
+        setOfflineError(data.detail || '签发失败')
+      }
+    } catch {
+      setOfflineError('网络错误')
+    } finally {
+      setIsCreatingOffline(false)
     }
   }
 
@@ -1023,6 +1082,58 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             </span>
                           )}
                         </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 离线授权签发（网络隔绝环境） */}
+                <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px dashed #ddd' }}>
+                  <div style={styles.resultLabel}>离线授权签发（客户电脑无法联网时使用）：</div>
+                  <div style={{ fontSize: '13px', color: '#888', marginBottom: '12px', lineHeight: 1.6 }}>
+                    让客户在桌面端「序列码认证 → 离线授权」导出申请文件，把文件里的机器码填到这里，授权类型用上方选择器。签发后把授权包发给客户，保存为文件导入即可；授权包与该机器绑定，拷到其他电脑无法使用。离线授权到期后需重新签发（离线状态无法远程吊销）。
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <input
+                      type="text"
+                      value={offlineMachineCode}
+                      onChange={(e) => setOfflineMachineCode(e.target.value)}
+                      placeholder="客户机器码（64位十六进制）"
+                      style={{ ...styles.input, flex: 1, fontFamily: 'monospace', fontSize: '14px' }}
+                    />
+                    <button
+                      onClick={createOfflinePackage}
+                      disabled={isCreatingOffline || !offlineMachineCode.trim() || (licenseType === 'custom' && !customExpiry)}
+                      style={styles.copyButton}
+                    >
+                      <Plus size={18} />
+                      <span>{isCreatingOffline ? '签发中...' : '签发离线授权包'}</span>
+                    </button>
+                  </div>
+
+                  {offlineError && (
+                    <div style={styles.error}>{offlineError}</div>
+                  )}
+
+                  {offlinePackage && (
+                    <div style={styles.resultBox}>
+                      <div style={styles.resultLabel}>授权包（发给客户保存为文件，如 rtpshark-license.json）：</div>
+                      <textarea
+                        readOnly
+                        value={offlinePackage}
+                        style={{ width: '100%', minHeight: '120px', boxSizing: 'border-box', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontFamily: 'monospace', fontSize: '12px', lineHeight: 1.6, resize: 'vertical' }}
+                      />
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                        <button
+                          onClick={() => { copyToClipboard(offlinePackage); setCopiedOffline(true); setTimeout(() => setCopiedOffline(false), 2000); }}
+                          style={styles.copyButton}
+                        >
+                          {copiedOffline ? <Check size={18} /> : <Copy size={18} />}
+                          <span>{copiedOffline ? '已复制' : '复制授权包'}</span>
+                        </button>
+                        <button onClick={downloadOfflinePackage} style={styles.copyButton}>
+                          <span>下载 JSON 文件</span>
+                        </button>
                       </div>
                     </div>
                   )}
