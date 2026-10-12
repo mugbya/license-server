@@ -9,6 +9,7 @@ A universal license management system for any software project. Supports multipl
 
 - **Multiple License Types**: Yearly, permanent, custom, and trial licenses
 - **Machine Binding**: License codes bound to machine codes with activation/verification
+- **Offline Licensing**: Issue machine-bound offline license packages for air-gapped environments
 - **JWT Auth Codes**: RSA-signed auth codes that cannot be forged
 - **Usage Statistics**: Record and analyze client usage reports
 - **Project Management**: Multi-project isolation
@@ -88,6 +89,7 @@ npm run build   # outputs to frontend/dist
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/license/create_key` | POST | Create license key |
+| `/api/license/create_offline` | POST | Issue offline license package (admin only, requires machine code) |
 | `/api/license/activate` | POST | Activate license |
 | `/api/license/verify` | POST | Verify license |
 | `/api/license/decode` | POST | Decode auth code |
@@ -323,6 +325,87 @@ Contains expiration time, JTI (unique ID), and activation time.
 6. Customer activates software with license_key, server returns auth_code
 7. Client uses public key to verify auth_code, checks expiration
 ```
+
+## Offline Licensing (Air-Gapped Environments)
+
+When the customer's computer has no network access at all, the online activation
+flow cannot be used. Offline licensing delivers a machine-bound license package
+file to the customer, with no network needed on the customer side.
+
+### Flow
+
+```
+Customer (offline computer)              Admin (license panel)
+──────────────────────────              ──────────────────────
+Desktop app "License" menu
+ → Offline licensing → Step 1:
+   Export request file
+   (JSON with app / machine_code /
+   app_version)
+      ──── send via WeChat etc. ────→   Generate License page → bottom
+                                        "Offline License Issuance": enter
+                                        customer machine code + license type
+                                        → Issue → Download JSON file
+      ←─── send back package JSON ──    (offline-{license_key}.json)
+Desktop app "Offline licensing"
+ → Step 2: Import license file
+ → local signature verification +
+   project/machine check → activated
+```
+
+### Admin Panel Operations
+
+"Offline License Issuance" at the bottom of the Generate License page:
+
+1. Ask the customer for the request file and enter its `machine_code`
+   (64-char hex) into the form;
+2. The license type reuses the selector at the top of the page
+   (yearly/permanent/custom; custom requires an expiry time);
+3. Click "Issue Offline Package" → "Download JSON File" and send it to
+   the customer.
+
+Issuing also inserts a license record bound to the `machine_code` (visible
+in the key list, auditable; can be revoked/unbound normally once the
+customer regains network access).
+
+### Package Format
+
+```json
+{
+  "v": 1,
+  "license_key": "GLY-XXXX-XXXX-XXXX-XXXX",
+  "license_type": "year",
+  "auth_code": "GLY-{header}.{payload}.{signature}"
+}
+```
+
+The `auth_code` matches what online activation returns, except the JWT
+payload carries an extra `mc` (machine code) field that binds it tightly
+to the target machine.
+
+### Security Mechanisms and Limits
+
+- **Tamper-proof**: the `auth_code` is signed as a whole by the RSA private
+  key; changing any field (expiry, machine code, etc.) breaks signature
+  verification. The private key exists only on the license server.
+- **Machine-bound**: the client strictly compares the JWT `mc` against the
+  machine code computed from the local hardware fingerprint; copying the
+  package to another computer fails on import. Switching machines =
+  re-issue with the new machine's code.
+- **Request file is not authenticated**: the request file is plain JSON
+  with no signature — it is a customer-reported machine code. The control
+  point is issuance (which code to sign and how many, decided by the admin).
+- **Offline expiry checks**: without NTP the client falls back to the local
+  clock, guarded by a time high-water mark against clock rollback.
+- **⚠️ No remote revocation while offline**: this is a physical limit.
+  Revocations/unbinds only take effect when the offline machine regains
+  network access and the client performs a silent verification. Therefore:
+  - Do **not** issue permanent licenses offline — they are fully
+    uncontrollable until expiry;
+  - Prefer yearly/custom time-limited licenses; re-issue on expiry (a
+    natural renewal touchpoint);
+  - "Switching machines kills the old one" can only mean the old machine's
+    license remains usable until its own expiry.
 
 ## Project Structure
 
